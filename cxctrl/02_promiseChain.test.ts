@@ -1,14 +1,17 @@
-/// <reference types= "@types/jest"  />
-import {Ctrl, Action, action } from '../lib/cxctrl'
-import {ActionDescriptor, ActionDescriptorIntf} from "../src/interfaces"
+
+import * as Ctrl from './Ctrl.ts'
+import  { Action } from './Action.ts'
+import { action } from './decorators/mod.ts'
+import { expect }  from 'https://deno.land/x/expect/mod.ts'
+import {ActionDescriptor, ActionDescriptorIntf} from "./interfaces.ts"
 /*
 import * as  Ctrl from '../src/Ctrl'
 import { Action } from '../src/Action'
 
 */ 
-import * as _ from 'lodash'
+// import * as _ from 'lodash'
 // import { action } from '../src/decorators'
-import { collapseTextChangeRangesAcrossMultipleVersions } from "typescript"
+// import { collapseTextChangeRangesAcrossMultipleVersions } from "typescript"
 
 
 type P = {name:string, age: number} 
@@ -148,16 +151,16 @@ class ObjR3  extends Action<R> {
       }
   }
 
-  describe('Ctrl can run an Action.ctrl() function as a promise',  () => {
-    let instR3 = new ObjR3()
-    let instP3 = new ObjP3()
-    let instQ3 = new ObjQ3()
-    let instS3 = new ObjS3()
+  // describe('Ctrl can run an Action.ctrl() function as a promise',  () => {
+    let instR3 = await new ObjR3().register()
+    let instP3 = await new ObjP3().register()
+    let instQ3 = await new ObjQ3().register()
+    let instS3 = await new ObjS3().register()
     
     let deps2 = instQ3.setDependencies('ObjS3')
     let deps = instR3.setDependencies('ObjP3','ObjQ3')
     
-    test( 'Correct Dependencies before Running execution test', () => {
+    Deno.test( 'Correct Dependencies before Running execution test', () => {
       expect(deps2).toEqual(['ObjS3']) 
       expect(deps).toEqual(['ObjP3', 'ObjQ3'])
     })
@@ -180,7 +183,7 @@ class ObjR3  extends Action<R> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-    test('It should RUN the Dependency Promises in order',  async () => {       
+    Deno.test('It should RUN the Dependency Promises in order',  async () => {       
         let nameR3 = ObjR3.name
         let actionsToRun = Ctrl.getActionsToRun('ObjR3')
         expect(actionsToRun.size).toEqual(4)
@@ -192,7 +195,7 @@ class ObjR3  extends Action<R> {
         // expect(false).toBeTruthy()
     })
 
-    test ('It should NOT RUN again with no dirty dependencies',  async () => { 
+    Deno.test ('It should NOT RUN again with no dirty dependencies',  async () => { 
         let nameR3 = ObjR3.name
         let actionsToRun = Ctrl.getActionsToRun('ObjR3')
         let promiseChain: ActionDescriptorIntf = Ctrl.getPromiseChain('ObjR3', false)
@@ -214,4 +217,4 @@ class ObjR3  extends Action<R> {
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[]]') 
     })
     */ 
-  })
+  //})

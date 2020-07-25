@@ -1,6 +1,6 @@
 import {CxGraph} from "https://raw.githubusercontent.com/cfjello/cxgraph/master/mod.ts"
-import {CxStore} from "../cxstore/mod.ts"
-import {$log, perf} from "../cxutil/mod.ts"
+import * as _store  from "../cxstore/CxStore.ts"
+import {$log, perf, $plog} from "../cxutil/mod.ts"
 import {ActionDescriptor, ActionDescriptorIntf, ActionConfigType} from "./interfaces.ts"
 import { Action } from './Action.ts'
 import EventEmitter from "https://deno.land/x/event_emitter/mod.ts"
@@ -19,6 +19,7 @@ process.on('unhandledRejection', (reason) => {
 // Event emitter for starting execution of promise trees
 // 
 export let ee = new EventEmitter()
+export let store = _store
 
 //
 // Simple Performance logger instance
@@ -46,7 +47,7 @@ export function* ctrlSeq() {
 }
 
 // let   id: number  = 1
-export let store: CxStore  = new CxStore($log)
+// export let store: CxStore  = new CxStore($log)
 export let graph: CxGraph  = new CxGraph()
 export let actions         = new Map<string, Action<any>>() 
 //
@@ -100,26 +101,30 @@ export let addDependency = ( actionName: string, dependency: string ): void => a
  *      - register the data structure (the state) in the store
  *      - add the action to the graph structure
  */
-export let addAction = ( action: Action<any>, decoratorCall: boolean = false ): void => {
-    // let storeId: number
-
-    if ( ! store.isRegistered( action.name ) ) {
+export let addAction = async ( action: Action<any>, decoratorCall: number = 0 ): Promise<void> => {
+    if ( ! store.isRegistered( action.name ) && decoratorCall == 1) {
         perf.mark( 'addAction', { action: action.name})
-        store.register(action.name, action.state).then(() => {
-            perf.mark( 'addAction',  { action: action.name, state: action.state } )
-        })
         graph.addNode(action.name)
-        actions.set(action.name, action)
-
+        try {
+            await store.register(action.name, action.state).then(() => {              
+                // graph.addNode(action.name)
+                actions.set(action.name, action)
+                perf.mark( 'addAction',  { action: action.name, state: action.state } )
+                console.log(`Adding Action and graph Node: ${action.name} with __cnt__: ${decoratorCall}`)   
+            })
+        }
+        catch (err) {
+            perf.mark( 'addAction',  { action: action.name, state: action.state } )
+            $plog.debug('Flushing the performence info')
+        }
     }
     else {
         // storeId = store.getStoreId( action.name ) 
         // $log.info( `Compare storeIds: ${storeId} and ${action._storeId}` )
-        if ( ! decoratorCall ) {
+        if ( decoratorCall == 0) {
             throw Error("Action " + action.name + " is already registred in the Store  - call ctrl.removeAction to remove it first")
         }    
     }
-    // return storeId
 }
 
 /**
@@ -128,14 +133,12 @@ export let addAction = ( action: Action<any>, decoratorCall: boolean = false ): 
  * @param actionName Name of the action to be removed
  * @return Success or failure in a boolean
  */
-export let removeAction = ( actionName: string ): boolean => {
+export let removeAction = async( actionName: string ): Promise<void> => {
     if ( store.isRegistered(actionName) ) {
-        store.unregister(actionName)
+        await store.unregister(actionName)
         graph.removeNode(actionName)
         actions.delete(actionName)
-        return true
     }
-    else return false
 }
 
 /**

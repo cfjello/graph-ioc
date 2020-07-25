@@ -1,17 +1,16 @@
 export interface StoreIntf  {
-    register(key: string, objRef: any, threshold: number): void
+    register(key: string, objRef: any, threshold: number): Promise<number>
     unregister(key: string): Promise<boolean>
     get(key: string, storeId:number): {}
     hasStoreId(key: string, storeId:number): boolean 
     getStoreId( key: string, storeId: number): number
-    set<T>(key: string, objRef: any, threshold: number): Promise<void>
+    set<T>(key: string, objRef: any, threshold: number): Promise<number>
     has (key: string): boolean
     isRegistered(key: string): boolean
     // showStore(): void
 }
 
 export type stateMetaData = {    
-    latchId: number 
     storeId: number 
     prevStoreId: number
     threshold: number

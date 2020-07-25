@@ -8,9 +8,9 @@
             "name": "Deno",
             "type": "node",
             "request": "launch",
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}\\cxctrl\\decorators",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["--inspect", "--allow-net", "00_decorator.test.ts"],
+            "runtimeArgs": ["--inspect", "--inspect-brk", "--allow-net", "00_decorator.test.ts"],
             "port": 9229
         }
     ]

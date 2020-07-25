@@ -1,0 +1,133 @@
+/**
+ * Simple locking/latch implementation
+ * 
+ **/
+
+let latches = new Map<string, boolean>() 
+latches.set('__MLatch__', false)
+
+/**
+ * Very simple locking/latch implementation
+ * 
+ * @param latch The name of the latch
+ * @param lachesCalling Is serLatches calling? After calling this function from setLatches() the first time to set the master latch (0), this flag is set in the subsequent calls
+ * @param retries How many retries before giving up on latch
+ * @param latchWaitMs How many milliseconds to wait before each retry
+ */
+export async function setLatch( latch: string, lachesCalling: boolean = false, retries: number = 10, latchWaitMs: number = 100  ): Promise<unknown> {
+    // Wait for master latch lock to clear if you are not calling from setLatches()
+    /*
+    return new Promise( async ( resolve, reject ) => { 
+            //
+            // wait for the master lock to clear 
+            //
+            let counter = retries
+            //
+            // if setLatchesCalling is set it means that setLatched() has already itself aquired the master lock
+            //
+            while ( latches.get('__MLatch__') && ! lachesCalling ) {
+                //  
+                // create a timeout and reject promise once the number of remaining retries is 0
+                // 
+                let promise = new Promise( (resolve, reject) => {
+                    setTimeout(() => {
+                        if ( counter === 0 ) {
+                            reject( new Error(`Store.setLatch for latch ${latch} timed out while waiting for the master latch: 0`) )
+                        }
+                    }, latchWaitMs / retries )
+                })
+                let result = await promise
+                counter--
+            }
+            resolve( retries - counter ) // as unknown as Promise<number>
+    }).then ( ( res )  => {
+        */
+        //
+        // Now do the same for the actual latch to be set
+        //
+    await Mutex.doAtomic( latch, async function() {
+        return new Promise( async ( resolve, reject ) => { // set the latch
+            let counter = retries
+            while ( latches.has(latch) ) { // latch is currently set
+                let promise = new Promise( (resolve, reject) => {
+                    setTimeout( () => {
+                        if ( counter === 0 ) {
+                            reject( new Error(`setLatch() for latch ${latch} timed out while waiting for data latch: 0`) )
+                        }
+                    }, latchWaitMs / retries )
+                })
+                let result = await promise
+                counter--
+            }
+            latches.set( latch, true)
+            resolve( res as number + ( counter - retries) )
+        })
+        .finally( () => {
+            latches.set('__MLatch__', false)
+        })
+    })
+}
+
+/**
+ * Lookup the state for a given latch
+ * 
+ * @param _latch The id number|name of the latch 
+ */ 
+export function getLatch(latch: string ): boolean { return ( latches.has(latch) && latches.get(latch)! ) }
+
+/**
+ * Sets multiple latches in one transaction by locking the whole latch structure while doing so 
+ * @param storeKeys 
+ */
+export function setLatches( storeKeys: string[] ) {
+        let latchIds: string[] = []
+        try {
+            // Lock the whole latch bit array
+            setLatch('__MLatch__').then ( () => {
+                // then lock the individual entries
+                storeKeys.forEach( async (key ) => {
+                    let latchId: string 
+                    if ( latches.has(key) ) 
+                        // throw new Error( `setLatches`)= latchMap.get(key)
+                    await setLatch(key, true).then(() => latchIds.push(key)) 
+                    latchIds.push(key)
+                })
+            })
+        }
+        catch(e) {
+            latchIds.forEach( (key ) => { 
+                clearLatch(key)
+            })
+            throw(e)
+        }
+        finally {
+            // if ( latchIds.length > 0 ) {
+            clearLatch('__MLatch__')
+            // }
+        }
+    }
+
+/**
+ * Clear latch of cx store
+ * 
+ * @param latchId The position/number of the latch to clear
+ */
+export function clearLatch( latch: string ) { 
+    // if ( latches.has(latch))
+        latches.set( latch, false)
+    // else 
+       //  throw Error(`clearLatch(): Latch ${latch} does not exists, so cannot be cleared.`)
+}
+
+/**
+ * Clear latches by name of cx store
+ * 
+ * @param storeKeys An array of named store object to unlock
+ */
+export function clearLatches( storeKeys: string[]  ) {
+    storeKeys.forEach((key ) => {
+        // let latchId = this.meta.get(key).latchId
+        clearLatch(key)   
+    })
+    clearLatch('__MLatch__')
+}

@@ -30,7 +30,7 @@ class OA extends Action<A> {
   } 
 }
 
-let objA = await new OA('hirs')
+let objA = await new OA('hirs').register()
 /*
 let objA = Ctrl.createAction({  name: 'Young',
                                 ctrl: 'ctrl',
@@ -40,7 +40,7 @@ let objA = Ctrl.createAction({  name: 'Young',
 */ 
 
 
-Deno.test('Action decorator: It should decorate and intialize an Action', () => {
+Deno.test('Action registration and decorator: It should decorate and intialize an Action', () => {
   expect(objA.state.gender).toBeDefined()
   expect(objA.state.gender).toEqual('male')
   expect(objA.name).toBeDefined()
@@ -50,16 +50,15 @@ Deno.test('Action decorator: It should decorate and intialize an Action', () => 
   expect(objA.ping()).toEqual('action decorator ping() has been called')
 })
 
-Deno.test('Action decorator: Register should initialize in the Ctrl structure', () => {
+Deno.test('Action registration and decorator: Register should initialize in the Ctrl structure', () => {
   // perf.listPerfMap()
-  // expect(Ctrl.actions.has('Young')).toBeTruthy()
-  // expect(Ctrl.store.get('Young')).toBeDefined()
-  // expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
+  expect(Ctrl.actions.has('Young')).toBeTruthy()
+  expect(Ctrl.store.get('Young')).toBeDefined()
+  expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
   expect(true).toBeTruthy()
 })
 
 
-/*
  @action<A>( {
   name: 'Old',
   ctrl: 'ctrl',
@@ -71,12 +70,12 @@ class OB extends OA {
   }
 }
 
-let objB = new OB('hirs')
+let objB = await new OB('hirs').register()
 
 // let objB = Ctrl.cloneAction( { name: 'Old', ctrl: 'ctrl', state: { gender: 'female', age: 85} }, OA )
 // Ctrl.addAction(objB)
-describe('Extended class should apply the configuration',  () => {
-    test('Extended class should intialize the new Action instance', () => {
+
+    Deno.test('Extended class should intialize the new Action instance', () => {
       expect(objB.state.gender).toBeDefined()
       expect(objB.state.gender).toEqual('female')
       expect(objB.name).toBeDefined()
@@ -86,16 +85,15 @@ describe('Extended class should apply the configuration',  () => {
     })
 
   
-    test('Extended class  should initialize in the Ctrl structure', () => {
+    Deno.test('Extended class  should initialize in the Ctrl structure', () => {
       expect(Ctrl.actions.has('Old')).toBeTruthy()
       expect(Ctrl.store.get('Old')).toBeDefined()
       expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
     })
 
-    test('The Parent class should not have been changed', () => {
+    Deno.test('The Parent class should not have been changed', () => {
       expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
     })
-})
 
 @action<A>( {
   name: 'OverTheHill',
@@ -108,10 +106,10 @@ class OC extends OB {
   }
 }
 
-let objC = new OC('aunty')
+let objC = await new OC('aunty').register()
 
-describe('2nd Extended class should apply the configuration',  () => {
-  test('Extended class should intialize the new Action instance', () => {
+// describe('2nd Extended class should apply the configuration',  () => {
+  Deno.test('Extended class should intialize the new Action instance', () => {
     expect(objC.state.gender).toBeDefined()
     expect(objC.state.gender).toEqual('trans')
     expect(objC.name).toBeDefined()
@@ -121,15 +119,13 @@ describe('2nd Extended class should apply the configuration',  () => {
   })
 
 
-  test('1st Extended class  should initialize in the Ctrl structure', () => {
+  Deno.test('1st Extended class  should initialize in the Ctrl structure', () => {
     expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
   })
 
-  test('The initial Parent class should not have been changed', () => {
+  Deno.test('The initial Parent class should not have been changed', () => {
     expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
   })
-})
-*/
  
 
  

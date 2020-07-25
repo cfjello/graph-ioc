@@ -1,4 +1,4 @@
-import * as Ctrl from "./Ctrl.ts"
+import * as ctrl from "./Ctrl.ts"
 import isUndefined from "https://deno.land/x/lodash/isUndefined.js"
 import uniq from "https://deno.land/x/lodash/uniq.js"
 import union from "https://deno.land/x/lodash/union.js"
@@ -47,7 +47,7 @@ export abstract class Action<S> {
      */
     setDependencies = (... args: string[] ): string [] => { 
         this.dependencies = uniq( union( this.dependencies, args ) ) 
-        Ctrl.addDependencies( this.name, this.dependencies )
+        ctrl.addDependencies( this.name, this.dependencies )
         return this.dependencies
     }
 
@@ -59,7 +59,7 @@ export abstract class Action<S> {
      * @returns A copy of the state 
      */
     getState = (storeName: string, idx: number = -1 ): any => {
-        return Ctrl.getState(storeName, idx) as S
+        return ctrl.getState(storeName, idx) as S
     }
 
     /** 
@@ -67,11 +67,20 @@ export abstract class Action<S> {
     */
     publish = (): void => {
         let self = this
-        Ctrl.publish(this as Action<any>)
+        ctrl.publish(this as unknown as Action<any>)
         .then (() => {
-            self._storeId = Ctrl.store.getStoreId(self.className)
+            self._storeId = ctrl.store.getStoreId(self.className)
         })
     }
+
+    private __cnt__ = 0
+    register = async(): Promise<Action<S>> => { 
+        let self = this
+        await ctrl.addAction( this as unknown as Action<any>, ++this.__cnt__ )
+        return new Promise<Action<S>>( function(resolve) {
+            resolve( self as Action<S>)
+        })
+    } 
 
     /**
      * Ping  of action - small test function

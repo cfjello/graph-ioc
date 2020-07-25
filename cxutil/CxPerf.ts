@@ -95,6 +95,9 @@ export class Perf {
         let msg = JSON.stringify(this.getPerfRec( token ))
         $plog.info( msg )
     }
+    
+    
+    //['perfFile'].flush();
 
     /**
      * Lists the whole current perf map in the log file

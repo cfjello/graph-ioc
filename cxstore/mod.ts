@@ -1,1 +1,1 @@
-export { CxStore } from './CxStore.ts'
+export * as store from './CxStore.ts'
