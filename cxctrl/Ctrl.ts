@@ -110,7 +110,7 @@ export let addAction = async ( action: Action<any>, decoratorCall: number = 0 ):
                 // graph.addNode(action.name)
                 actions.set(action.name, action)
                 perf.mark( 'addAction',  { action: action.name, state: action.state } )
-                console.log(`Adding Action and graph Node: ${action.name} with __cnt__: ${decoratorCall}`)   
+                // console.log(`Adding Action and graph Node: ${action.name} with __cnt__: ${decoratorCall}`)   
             })
         }
         catch (err) {
@@ -260,27 +260,29 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Act
         // Create Promises for the execution tree
         //
         if ( [ ...dependsOn.values() ].length > 0 )  {             
-            actionsToRun.get(key)!.promise = Promise.all([ ...dependsOn.values() ] ).then( () => {
-                return new Promise( async (resolve, reject) => {  
+            actionsToRun.get(key)!.promise = Promise.all([ ...dependsOn.values() ] )
+            .then( () => {
+                return new Promise( async (resolve) => {  
                     let res = false 
                     let dirty = false
-                    try {
-                        let desc = { transaction: transaction, seq: ctrlSeq().next().value, ran: false, success: false}
-                        p.mark('P_' + key, desc);
-                        if ( (dirty = isDirty(key) || runAll ) ) {
-                            let actionObj = actions.get(key) as Action<any>
-                            let funcName: string = actionObj.funcName
-                            res = await (actionObj as any)[funcName]()
-                        }
-                        desc.ran      = dirty || runAll
-                        desc.success  = res || ! dirty
-                        p.mark('P_' + key, desc)
-                        resolve(key)
+                    let desc = { transaction: transaction, seq: ctrlSeq().next().value, ran: false, success: false}
+                    p.mark('P_' + key, desc);
+                    if ( (dirty = isDirty(key) || runAll ) ) {
+                        let actionObj = actions.get(key) as Action<any>
+                        let funcName: string = actionObj.funcName
+                        res = await (actionObj as any)[funcName]()
                     }
-                    catch(e) {
-                        $log.error(e.stack)
-                        reject(e)
-                    }
+                    desc.ran      = dirty || runAll
+                    desc.success  = res || ! dirty
+                    p.mark('P_' + key, desc)
+                    resolve(key)
+
+                })
+                .catch( (e)  =>  {
+                    $log.error(e.stack)
+                })
+                .finally ( () => {
+                    if ( key == baseKey ) ee.emit( `${eventName}_fin` )
                 })
             })
         }         
@@ -289,7 +291,15 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Act
     return {
         getActionsToRun(): Map<string,ActionDescriptor>  { return actionsToRun },
         getPromise():      Promise<unknown> { return actionsToRun.get(baseKey)!.promise! },
-        run():             void { ee.emit( eventName ) }
+        async run():       Promise<void> { 
+                                    // Emit the event that starts the 
+                                    // execution of the promise chains
+                                    ee.emit( eventName ) 
+                                    return new Promise( (resolve, reject) => { 
+                                        // Wait for the completion event
+                                        ee.on(`${eventName}_fin`, () => resolve() )
+                                    })
+                                }
     }
 }
 
@@ -299,7 +309,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Act
  * @param actionName The name of the action to run
  * @return True if all actions ran successfully, otherwise false
  */
-export let runTarget = ( actionName: string ): boolean => {
+export let runTarget = async ( actionName: string ): Promise<void> => {
     let transaction = ctrlId().next().value
     let desc = { transaction: transaction }
     
@@ -313,7 +323,7 @@ export let runTarget = ( actionName: string ): boolean => {
             p.mark(`F_${action}`,  desc ) 
             let actionObj = actions.get(action) as Action<any>
             let funcName: string = actionObj.funcName
-            res = (actionObj as any)[funcName]()  // call it
+            res = await (actionObj as any)[funcName]()  // call it
             p.mark(`F_${action}`,  { transaction: desc.transaction, seq: ctrlSeq().next().value,  ran: true, success: res } )
             resAll = ( res == true ) ? resAll : false
         }
@@ -322,15 +332,10 @@ export let runTarget = ( actionName: string ): boolean => {
       
     p.mark("runTarget")
 
-    return resAll         
+    return Promise.resolve()         
 }
-
-/*
-export let ping = () => {
-    $log.info('Ctrl ping')
-}
-
- TODO: refactor this
+/**
+ TODO: rewrite this
 export let runDependants = ( actionName: string ): boolean => {
         let resAll = true
         if ( graph.hasNode( actionName) ) {

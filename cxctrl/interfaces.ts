@@ -11,7 +11,7 @@ export type ActionDescriptor = {
 export interface ActionDescriptorIntf {
     getActionsToRun(): Map<string, ActionDescriptor>
     getPromise(): Promise<unknown>
-    run(): void 
+    run(): Promise<void>
 }
 
 export type ActionConfigType<S> = {

@@ -189,10 +189,8 @@ class ObjR3  extends Action<R> {
         expect(actionsToRun.size).toEqual(4)
         let promiseChain: ActionDescriptorIntf = Ctrl.getPromiseChain('ObjR3', true)
         expect(ObjR3.name).toEqual(nameR3)
-        promiseChain.run()
-        await sleep(3000)
+        await promiseChain.run()
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
-        // expect(false).toBeTruthy()
     })
 
     Deno.test ('It should NOT RUN again with no dirty dependencies',  async () => { 
@@ -200,21 +198,20 @@ class ObjR3  extends Action<R> {
         let actionsToRun = Ctrl.getActionsToRun('ObjR3')
         let promiseChain: ActionDescriptorIntf = Ctrl.getPromiseChain('ObjR3', false)
         expect(ObjR3.name).toEqual(nameR3)
-        promiseChain.run()
-        await sleep(3000)
+        await promiseChain.run()
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
     })
 
     /*
-    test('It should only run dirty Dependency Promises',  async () => { 
-        Ctrl.runTarget('ObjQ3') // This will now be dirty
+    Deno.test('It should only run dirty Dependency Promises',  async () => { 
+        await Ctrl.runTarget('ObjQ3') // This will now be dirty
         let nameR3 = ObjR3.name
         let actionsToRun = Ctrl.getActionsToRun('ObjP3')
         let promiseChain: ActionDescriptorIntf = Ctrl.getPromiseChain('ObjR3', false)
         expect(ObjR3.name).toEqual(nameR3)
-        promiseChain.run()
-        await sleep(3000)
+        await promiseChain.run()
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[]]') 
     })
     */ 
   //})
+  

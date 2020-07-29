@@ -72,16 +72,19 @@ export abstract class Action<S> {
             self._storeId = ctrl.store.getStoreId(self.className)
         })
     }
-
+    
+    /** 
+    * Register the Action Object
+    */
     private __cnt__ = 0
-    register = async(): Promise<Action<S>> => { 
+    register = async(): Promise<any> => { 
         let self = this
-        await ctrl.addAction( this as unknown as Action<any>, ++this.__cnt__ )
+        await ctrl.addAction( this as Action<any>, ++this.__cnt__ )
         return new Promise<Action<S>>( function(resolve) {
-            resolve( self as Action<S>)
+            resolve( self )
         })
     } 
-
+    
     /**
      * Ping  of action - small test function
      */

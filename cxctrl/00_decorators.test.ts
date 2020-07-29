@@ -15,7 +15,7 @@ type D = {gender:string, age: number}
 
 @action<A>( {
   name: 'Young',
-  ctrl: 'ctrl',
+  ctrl: 'main',
   state: { gender: 'male', age: 13}
 })
 class OA extends Action<A> {
@@ -24,7 +24,7 @@ class OA extends Action<A> {
       console.debug('objA Constructor')
   }
 
-  ctrl():void { 
+  main():void { 
     this.state.gender = this.preferGenderName
     this.publish()
   } 
@@ -114,12 +114,14 @@ let objC = await new OC('aunty').register()
     expect(objC.state.gender).toEqual('trans')
     expect(objC.name).toBeDefined()
     expect(objC.name).toEqual('OverTheHill')
+    expect(objC.preferGenderName).toEqual('aunty')
     expect(objC.setDependencies).toBeDefined()
     expect(objC.ping()).toEqual('action decorator ping() has been called')
+    //expect (objC.preferGenderName).toBeDefined()
   })
 
 
-  Deno.test('1st Extended class  should initialize in the Ctrl structure', () => {
+  Deno.test('1st Extended class should initialize in the Ctrl structure', () => {
     expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
   })
 
