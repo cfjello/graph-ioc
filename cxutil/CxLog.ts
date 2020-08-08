@@ -4,19 +4,8 @@ import { perf } from "./mod.ts";
 
 /**
 * Logger Singleton that can be imported across modules in a project
-
-const $logDir: string = '../logs'
-export  { $logDir }
-
-const $log = new Logger();
-await $log.initFileLogger( '../logs/ctrl', { rotate: true } )
-$log.enableConsole()
-export { $log }
-
-const $plog = new Logger();
-await $plog.initFileLogger( '../logs/perf', { rotate: true } )
-export { $plog }
 */
+
 /**
 * Logger to be imported across modules in a project
 **/
