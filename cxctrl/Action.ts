@@ -1,7 +1,10 @@
 import * as ctrl from "./Ctrl.ts"
-import isUndefined from "https://deno.land/x/lodash/isUndefined.js"
-import uniq from "https://deno.land/x/lodash/uniq.js"
-import union from "https://deno.land/x/lodash/union.js"
+import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
+import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
+import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
+// import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
+// import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
+import { ActionDescriptor } from "./ActionDescriptor.ts"
 
 export abstract class Action<S> { 
     //
@@ -84,6 +87,19 @@ export abstract class Action<S> {
             resolve( self )
         })
     } 
+
+    
+    __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
+        try {
+            let res = (this as any)[this.funcName]().then( (res:boolean)  => {
+                actionDesc.storeId = ctrl.store.getStoreId(actionDesc.name)
+                Promise.resolve(res as boolean)
+            })
+        }
+        catch(err) {
+            throw new Error(`Action.__exec__ctrl__function__  failed to call ${this.className}.${this.funcName}`)
+        }
+    }
     
     /**
      * Ping  of action - small test function

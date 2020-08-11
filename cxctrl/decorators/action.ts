@@ -1,14 +1,16 @@
 import { ActionConfigType } from '../interfaces.ts'
 import * as ctrl from "../Ctrl.ts"
 import { Action } from '../Action.ts'
-import isUndefined from "https://deno.land/x/lodash/isUndefined.js"
-import uniq from "https://deno.land/x/lodash/uniq.js"
-import union from "https://deno.land/x/lodash/union.js"
-import cloneDeep from "https://deno.land/x/lodash/cloneDeep.js"
+import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
+import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
+import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
+import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
+// import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 // import  mixinDeep from "./mixinDeep.js"
 
 export function action<S>(config: ActionConfigType<S> ) {
     return  function <T extends { new(...args: any[]): {} }>(constructor: T) { 
+        let original = constructor
         config.name = isUndefined(config.name) ? constructor.name : config.name !
             return class extends constructor {   
                 /**
@@ -30,7 +32,7 @@ export function action<S>(config: ActionConfigType<S> ) {
                 /**
                 * State is the data that the action will eventually publish for other actions to read
                 */
-                state:       S       =  cloneDeep( config.state ) 
+                state:       S       =  cloneDeep( config.state )
                 /**
                  * The list og other object that this action instance and its state depends on
                  */

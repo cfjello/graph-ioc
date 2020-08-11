@@ -1,14 +1,23 @@
-export type ActionDescriptor = {
+import {Action} from "./Action.ts"
+import { ActionDescriptor } from "./ActionDescriptor.ts"
+/*
+export type ActionDescriptorT = {
     name:       string
     ident:      string 
     storeId?:   number 
     children:   string[]
     isDirty?:   boolean
     transId?:   number
-    promise?:   Promise<unknown> 
+    seqId?:     number,
+    ran:        boolean,
+    success:    false,
+    // actionObj?:  Action<any>
+    // promise?:   Promise<unknown> 
 }
+*/
 
 export interface ActionDescriptorIntf {
+    getJobId():        string,
     getActionsToRun(): Map<string, ActionDescriptor>
     getPromise(): Promise<unknown>
     run(): Promise<void>
@@ -20,7 +29,7 @@ export type ActionConfigType<S> = {
     state:  S
 }
 
-import {Action} from "./Action.ts"
+
 export type cloneConfigType<S> = {
     action:  Action<S>
     name?:   string

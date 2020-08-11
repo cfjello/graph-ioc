@@ -5,7 +5,9 @@ import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
 // import { equal } from "https://deno.land/std/testing/asserts.ts";
-import { Mutex } from "https://raw.githubusercontent.com/mauvexephos/mutex/master/mod.ts"
+import { Mutex }    from "./Mutex.ts"
+// import { Mutex } from "https://raw.githubusercontent.com/mauvexephos/mutex/master/mod.ts"
+// import { Mutex } from "https://raw.githubusercontent.com/denoland/deno/1b6985ad516e2974b91b63e0acbedf7cdd465c6c/std/async/mutex.ts"
 import { $log }     from "../cxutil/CxLog.ts"
 // import { latches }  from './mod.ts'
 

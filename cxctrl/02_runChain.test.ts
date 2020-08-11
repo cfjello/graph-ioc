@@ -3,7 +3,7 @@ import * as Ctrl from './Ctrl.ts'
 import  { Action } from './Action.ts'
 import { action } from './decorators/mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
-import {ActionDescriptor, ActionDescriptorIntf} from "./interfaces.ts"
+import { ActionDescriptorIntf} from "./interfaces.ts"
 /*
 import * as  Ctrl from '../src/Ctrl'
 import { Action } from '../src/Action'

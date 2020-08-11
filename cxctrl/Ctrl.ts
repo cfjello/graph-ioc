@@ -1,19 +1,17 @@
 import {CxGraph} from "https://raw.githubusercontent.com/cfjello/cxgraph/master/mod.ts"
 import * as _store  from "../cxstore/CxStore.ts"
 import {$log, perf, $plog} from "../cxutil/mod.ts"
-import {ActionDescriptor, ActionDescriptorIntf, ActionConfigType} from "./interfaces.ts"
+import { ActionDescriptorIntf } from "./interfaces.ts"
+import { ActionDescriptor } from "./ActionDescriptor.ts"
 import { Action } from './Action.ts'
-import EventEmitter from "https://deno.land/x/event_emitter/mod.ts"
+import EventEmitter  from "https://raw.githubusercontent.com/denolibs/event_emitter/master/lib/mod.ts"
+// import EventEmitter from "https://deno.land/x/event_emitter/mod.ts"
+import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
+// import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
+// import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
+// import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
+// import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 // import "reflect-metadata" 
-
-
-// logger.disableConsole();
-
-/*
-process.on('unhandledRejection', (reason) => {
-    $log.error('Reason: ' + reason);
-});
-*/ 
 
 //
 // Event emitter for starting execution of promise trees
@@ -46,10 +44,9 @@ export function* ctrlSeq() {
     }
 }
 
-// let   id: number  = 1
-// export let store: CxStore  = new CxStore($log)
 export let graph: CxGraph  = new CxGraph()
 export let actions         = new Map<string, Action<any>>() 
+export let activity        = new Map<string, ActionDescriptor[]>()
 //
 // Store Functions
 // 
@@ -170,12 +167,12 @@ export let isDirty = ( actionName: string ): boolean => {
 }
 
 /**
- * Build the map of all dependencies that are dirty and returns 
+ * Build the map of all dependencies 
  * 
  * @param actionName Name of the action
  * @return A Map of Action Descriptors
  */
-export let getActionsToRun  = ( actionName: string ): Map<string, ActionDescriptor> => {
+export let getActionsToRun  = ( actionName: string, transId: number | void =  ctrlId().next().value  ): Map<string, ActionDescriptor> => {
     p.mark('getActionsToRun', { action: actionName} )
     let actionsToRun = new Map<string, ActionDescriptor>()
     let inversHierarchy  = new Map<string, string>()
@@ -205,7 +202,13 @@ export let getActionsToRun  = ( actionName: string ): Map<string, ActionDescript
             //
             // Set the action Descriptor
             //
-            let actionDesc : ActionDescriptor =  { name: key , ident: currIdent, storeId: storeId, children: children}
+            let actionDesc = new ActionDescriptor()
+            actionDesc.name     = key
+            actionDesc.ident    = currIdent
+            actionDesc.storeId  = storeId
+            actionDesc.children  = children
+            actionDesc.transId  =  transId as number
+            actionDesc.seqId    =  ctrlSeq().next().value as number
             actionsToRun.set(key, actionDesc )
             prevNodeIdent.push(currIdent)
         });     
@@ -223,17 +226,16 @@ export let getActionsToRun  = ( actionName: string ): Map<string, ActionDescript
  * @returns ActionDescriptorIntf An Action descriptor interface containng a run() funtion that emits a run event for this action chain
  */
 export let getPromiseChain = ( actionName: string, runAll: boolean = true ): ActionDescriptorIntf => {
-    let transaction = ctrlId().next().value
-    // let desc = { transaction: transaction } 
-    p.mark("promiseChain",  { transaction: transaction, seq: ctrlSeq().next().value} ) 
+    const transId = ctrlId().next().value as number
+    p.mark("promiseChain",  { transId: transId, seq: 0} ) // TODO: fix to have clear start and end conditions
 
-    let actionsToRun = getActionsToRun(actionName)
+    let actionsToRun = getActionsToRun(actionName, transId)
     //
     // Create an initial promise that listens for a triggering event, 
     // allowing us to control when the whole transaction chain of promises are activated
     //
-    let baseKey = [... actionsToRun.keys()].reverse()[0]
-    let eventName: string =  `${baseKey}_Event_${transaction}`
+    const baseKey = [... actionsToRun.keys()].reverse()[0]
+    const eventName: string =  `${baseKey}_Event_${transId}`
     let eventTrig: Promise<void> = new Promise( (resolve, reject) => {
         ee.on(eventName, () => resolve() )  
     }) 
@@ -252,8 +254,15 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Act
                 dependsOn.set(eventName, eventTrig) 
         }
         else {
-            actionDesc.children.forEach( (childKey ) => {
-                dependsOn.set(childKey, actionsToRun.get(childKey)!.promise!)
+            actionDesc.children.forEach( (childKey: string) => {
+                //
+                // Since the actionToRun list is reverse sorted
+                // the promise is assumed to be set at this point
+                //
+                try {
+                    dependsOn.set(childKey, actionsToRun.get(childKey)!.promise!)
+                }
+                catch( err ) { throw new Error( `getPromiseChain: childKey ${childKey}.promise is undefined` ) }       
             })
         }
         //
@@ -265,18 +274,16 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Act
                 return new Promise( async (resolve) => {  
                     let res = false 
                     let dirty = false
-                    let desc = { transaction: transaction, seq: ctrlSeq().next().value, ran: false, success: false}
-                    p.mark('P_' + key, desc);
+                    p.mark('P_' + key, actionDesc);
                     if ( (dirty = isDirty(key) || runAll ) ) {
                         let actionObj = actions.get(key) as Action<any>
-                        let funcName: string = actionObj.funcName
-                        res = await (actionObj as any)[funcName]()
+                        res = await actionObj.__exec__ctrl__function__ (actionDesc)
                     }
-                    desc.ran      = dirty || runAll
-                    desc.success  = res || ! dirty
-                    p.mark('P_' + key, desc)
+                    actionDesc.ran      = dirty || runAll
+                    actionDesc.success  = res || ! dirty
+                    ctrl.activity[eventName].push(actionDesc)
+                    p.mark('P_' + key, actionDesc)
                     resolve(key)
-
                 })
                 .catch( (e)  =>  {
                     $log.error(e.stack)
@@ -289,7 +296,8 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Act
     })
     p.mark("promiseChain") 
     return {
-        getActionsToRun(): Map<string,ActionDescriptor>  { return actionsToRun },
+        getJobId():        string  { return eventName },
+        getActionsToRun(): Map<string, ActionDescriptor>  { return actionsToRun },
         getPromise():      Promise<unknown> { return actionsToRun.get(baseKey)!.promise! },
         async run():       Promise<void> { 
                                     // Emit the event that starts the 
