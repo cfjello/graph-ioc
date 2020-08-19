@@ -8,10 +8,12 @@ import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cl
 // import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 // import  mixinDeep from "./mixinDeep.js"
 
+
+
 export function action<S>(config: ActionConfigType<S> ) {
     return  function <T extends { new(...args: any[]): {} }>(constructor: T) { 
-        let original = constructor
         config.name = isUndefined(config.name) ? constructor.name : config.name !
+        // console.log( `creating constructor for ${config.name}  --> constructor.name defined: ${! isUndefined(constructor.name)} ` ) // and prototype: ${Object.getPrototypeOf(constructor)}
             return class extends constructor {   
                 /**
                 * The common Name of both the action and the state data object in the store
@@ -70,8 +72,12 @@ export function action<S>(config: ActionConfigType<S> ) {
                     .then (() => {
                         self._storeId = ctrl.store.getStoreId(self.className)
                     })
-                }
-
+                }          
+                /** 
+                * Set the _cnt_ that counts the number of decorator calls
+                */
+                // protected _cnt_: number = config._cnt_!
+               
                 /**
                  * Ping  of action - small test function
                  */

@@ -4,12 +4,14 @@ import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
 // import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
 // import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
+import { Mutex }    from "../cxutil/Mutex.ts"
 import { ActionDescriptor } from "./ActionDescriptor.ts"
 
 export abstract class Action<S> { 
     //
     // member variables
     //
+    private _currActionDesc: ActionDescriptor = new ActionDescriptor()
     /**
      * State is the data that the action will eventually publish for other actions to read
      */
@@ -70,7 +72,7 @@ export abstract class Action<S> {
     */
     publish = (): void => {
         let self = this
-        ctrl.publish(this as unknown as Action<any>)
+        ctrl.publish( this as unknown as Action<any> )
         .then (() => {
             self._storeId = ctrl.store.getStoreId(self.className)
         })
@@ -79,20 +81,28 @@ export abstract class Action<S> {
     /** 
     * Register the Action Object
     */
-    private __cnt__ = 0
+    protected _cnt_: number = 0
     register = async(): Promise<any> => { 
         let self = this
-        await ctrl.addAction( this as Action<any>, ++this.__cnt__ )
-        return new Promise<Action<S>>( function(resolve) {
-            resolve( self )
-        })
-    } 
+        ctrl.initCounts.set(this.name, ctrl.initCounts.has( this.name ) ? ctrl.initCounts.get(this.name)! + 1 : 1 )
+        let _cnt_ = ctrl.initCounts.get(this.name)
+        // if ( _cnt_ === 1 ) {
+            await ctrl.addAction( this as Action<any>,  _cnt_ )
+        // }
+        return new Promise<Action<S>>( function(resolve) { resolve( self ) })
+    }
 
     
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
+        let self = this
+        let lock = `${actionDesc.name}_run`
         try {
-            let res = (this as any)[this.funcName]().then( (res:boolean)  => {
-                actionDesc.storeId = ctrl.store.getStoreId(actionDesc.name)
+            //
+            // The same async object should always execute sequencially 
+            Mutex.doAtomic( lock , async () => {
+                self._currActionDesc = actionDesc
+                let res = (this as any)[this.funcName]()
+                // actionDesc.storeId = ctrl.store.getStoreId(actionDesc.name)
                 Promise.resolve(res as boolean)
             })
         }

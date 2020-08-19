@@ -5,7 +5,7 @@ import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
 // import { equal } from "https://deno.land/std/testing/asserts.ts";
-import { Mutex }    from "./Mutex.ts"
+import { Mutex }    from "../cxutil/Mutex.ts"
 // import { Mutex } from "https://raw.githubusercontent.com/mauvexephos/mutex/master/mod.ts"
 // import { Mutex } from "https://raw.githubusercontent.com/denoland/deno/1b6985ad516e2974b91b63e0acbedf7cdd465c6c/std/async/mutex.ts"
 import { $log }     from "../cxutil/CxLog.ts"
@@ -26,6 +26,7 @@ function* storeSeq() {
  * TODO: for later - update the Store to support shared memory and workers
  */ 
 let state           = new Map< string, Map<number,any>>()
+let index           = new Map<string,Object>()
 let meta            = new Map<string,stateMetaData>()
 let updIdx: number  = 0
 let storeId         = storeSeq();
@@ -132,7 +133,7 @@ export async function set<T>( key: string, objRef: T, threshold: number = -1  ):
         if ( isUndefined( key) ) throw new Error ( "Store.set() must be passed a valid Object key-name to store")
         if ( ! isObject( objRef) ) throw new Error ( "Store.set() must be passed an Object to store")
         //
-        // Do we have a new key? If so we create it
+        // Do we have a new key? If so we create the meta info
         //
         if ( ! state.has( key ) )  {
             let thresholdSize = threshold < 2 ? -1 : threshold
@@ -147,7 +148,8 @@ export async function set<T>( key: string, objRef: T, threshold: number = -1  ):
         if ( metaInfo.storeId < 0 ||  ! isEqual( objRef, state.get(key)!.get( metaInfo.storeId ) as T ) ) {
             metaInfo.prevStoreId = metaInfo.storeId
             metaInfo.storeId     = storeId.next().value as number
-            await Mutex.doAtomic( key, async () => {
+            let lock = `${key}_store`
+            await Mutex.doAtomic( lock, async () => {
                 state.get(key)!.set( metaInfo.storeId , cloneDeep(objRef) )
                 if ( metaInfo.threshold > 1 && state.get(key)!.size > metaInfo.threshold ) {
                     let firstKey  = state.get(key)!.keys().next().value

@@ -8,10 +8,12 @@
             "name": "Deno",
             "type": "node",
             "request": "launch",
-            "cwd": "${workspaceFolder}\\cxctrl\\decorators",
+            "cwd": "${workspaceFolder}\\cxctrl",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["--inspect", "--inspect-brk", "--allow-net", "00_decorator.test.ts"],
-            "port": 9229
+            "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--config", "tsconfig.json", "${file}"],
+            "port": 9229,
+            "outputCapture": "std",
+            "console": "integratedTerminal"
         }
     ]
 }

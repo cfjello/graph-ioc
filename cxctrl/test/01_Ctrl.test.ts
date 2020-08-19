@@ -1,7 +1,5 @@
-import * as  ctrl from './Ctrl.ts'
-import { Action } from './Action.ts'
-import { action } from './decorators/mod.ts'
-import { $log, $plog } from '../cxutil/mod.ts'
+import {ctrl, Action, action } from '../mod.ts'
+import { $log, $plog } from '../../cxutil/mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 // import {ActionDescriptor, ActionDescriptorIntf} from "./interfaces.ts"
 // import { delay } from 'https://deno.land/x/delay/delay.js'
@@ -149,7 +147,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
         expect(dep.size).toEqual(3)
         let storeId = ctrl.store.getStoreId('ObjB')
         let B = dep.get('ObjB')!
-        expect(Object.values(B).slice(0,4)).toEqual( ['ObjB', '01.02', storeId, [] ] ) 
+        expect(Object.values(B).slice(2,6)).toEqual( ['ObjB', '01.02', storeId, [] ] ) 
     })
   
     @action<D>({ 
@@ -167,10 +165,10 @@ Deno.test('Generator functions should return incremented numbers', () => {
       expect(dep.size).toEqual(4)
       let storeId = ctrl.store.getStoreId('ObjB')
       let B = dep.get('ObjB')!
-      expect(Object.values(B).splice(0,4)).toEqual( ['ObjB', '01.02', storeId, ['ObjD'] ] ) 
+      expect(Object.values(B).splice(2,4)).toEqual( ['ObjB', '01.02', storeId, ['ObjD'] ] ) 
       let C = dep.get('ObjC')!
       storeId = ctrl.store.getStoreId('ObjC')
-      expect(Object.values(C).slice(0,4)).toEqual( ['ObjC', '01', storeId, [ 'ObjB', 'ObjA' ] ] ) 
+      expect(Object.values(C).slice(2,6)).toEqual( ['ObjC', '01', storeId, [ 'ObjB', 'ObjA' ] ] ) 
     }) 
 
     //
