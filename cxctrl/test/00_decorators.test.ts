@@ -55,7 +55,7 @@ Deno.test('Action registration and decorator: Register should initialize in the 
   // perf.listPerfMap()
   expect(Ctrl.actions.has('Young')).toBeTruthy()
   expect(Ctrl.store.get('Young')).toBeDefined()
-  expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
+  expect(Ctrl.getState('Young', -1) ).toEqual(objA.state)
   expect(true).toBeTruthy()
 })
 

@@ -7,7 +7,7 @@ class NameAndAge {
     nameAndAge () { console.log( JSON.stringify(this.state)) }
 }
 
-type C_Type = { f1: string, f2: string }
+type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
 
     Deno.test({
         name: 'Store: It should intialize the store object', 
@@ -23,8 +23,8 @@ type C_Type = { f1: string, f2: string }
     Deno.test( {
         name: 'Store: It should add to the store object', 
         fn: async () => {
-            let context  = { f1: 'field_1', f2: 'field_2'}
-            await store.register('testContext', context)
+            let context  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
+            await store.register('testContext', context )
             let storeId =  store.getStoreId('testContext')
             expect(storeId).toBeDefined()
             expect(context).toBeDefined()
@@ -45,12 +45,12 @@ type C_Type = { f1: string, f2: string }
             expect(store.size()).toEqual(1)
 
             
-            let context2: C_Type  = { f1: 'field_1', f2: 'field_2'}
+            let context2: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
             await store.register('testContext2', context2)
             expect(store.size()).toEqual(2)
         
 
-            let context3: C_Type  = { f1: 'field_1', f2: 'field_2'}
+            let context3: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
             await store.register('testContext3', context3)
             expect(store.size()).toEqual(3)
         },
@@ -85,7 +85,10 @@ type C_Type = { f1: string, f2: string }
         sanitizeResources: false,
         sanitizeOps: false
     })
-
+    /*
+    /* Dropped this feature due to the merge into of the fields jobid, taskId, storeId, that are always different
+    /* potentially giving the compare before insert a bad performance
+    /*
     Deno.test( {
         name: 'Store: It should publish in Store only when there is a change', 
         fn: async () => {
@@ -117,20 +120,23 @@ type C_Type = { f1: string, f2: string }
         sanitizeResources: false,
         sanitizeOps: false
     })
+    */
 
     Deno.test({
         name: 'Store: It should delete collection entries according to treshold', 
         fn: async () => {
-            let nameAndAge2 = new NameAndAge({name: 'Benny', age:38 })
-            await store.register("NameAndAge2", nameAndAge2.state, 2 )
+            let nameAndAge2 = new NameAndAge({name: 'Benny', age:38,  jobId: -1 , taskId: -1 })
+            await store.register("NameAndAge2", nameAndAge2.state, 2 ) // Store with treshold
+
             let storeId_1 = store.getStoreId("NameAndAge2")
             expect(store.getStoreId('NameAndAge2')).toEqual(storeId_1)
             expect(store.getStoreId('NameAndAge2', storeId_1)).toEqual(storeId_1)
             // Now update
             nameAndAge2.state.name = "Bunny"
             nameAndAge2.state.age  = 18
-            await store.set("NameAndAge2", nameAndAge2.state)
-            expect(store.getStoreId('NameAndAge2')).toEqual(storeId_1 + 1)
+            await store.set("NameAndAge2", nameAndAge2.state, -1 , undefined)
+            let storeId_2 = store.getStoreId("NameAndAge2")
+            expect(storeId_2).toEqual(storeId_1 + 1)
             /*
             // Now update
             nameAndAge2.state.name = "Sunny"
@@ -153,11 +159,17 @@ type C_Type = { f1: string, f2: string }
 
     Deno.test( {
         name: 'Store: It can do error handling', 
-        fn: () => {
-            expect(store.getStoreId('NameAndAge', 222)).toEqual(-1)          
-            let storeId = store.getStoreId("NameAndAge")
-            try { store.getStoreId('Non_Existing_NameAndAge', storeId) }
-            catch(e) { expect(e.stack).toMatch(/does not exist/m) }
+        fn: async () => {
+            let nameAndAge3 = new NameAndAge({name: 'Benny', age:38 })
+            await store.register("NameAndAge3", nameAndAge3.state)
+            expect(store.getStoreId('NameAndAge3', 222)).toEqual(-1)          
+            let storeId = store.getStoreId("NameAndAge3")
+            try { 
+                store.getStoreId('Non_Existing_NameAndAge', storeId) 
+            }
+            catch(e) { 
+                expect(e.stack).toMatch(/does not exist/m) 
+            }
         },
         sanitizeResources: false,
         sanitizeOps: false

@@ -1,14 +1,11 @@
-import { ActionConfigType } from '../interfaces.ts'
+import { ActionConfigType, StateKeys } from '../interfaces.ts'
 import * as ctrl from "../Ctrl.ts"
 import { Action } from '../Action.ts'
 import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
 import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
-// import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
-// import  mixinDeep from "./mixinDeep.js"
-
-
+import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 
 export function action<S>(config: ActionConfigType<S> ) {
     return  function <T extends { new(...args: any[]): {} }>(constructor: T) { 
@@ -30,11 +27,11 @@ export function action<S>(config: ActionConfigType<S> ) {
                 /**
                 * Store id for the state data object within the store
                 */
-                _storeId:    number = -100  // Ctrl.store.getStoreId(action.name)
+                // _storeId:    number = -100  // Ctrl.store.getStoreId(action.name)
                 /**
                 * State is the data that the action will eventually publish for other actions to read
                 */
-                state:       S       =  cloneDeep( config.state )
+                state: S & StateKeys  =  merge( cloneDeep( config.state ), { jobId: -1, taskId: -1, storeId: -1 } )
                 /**
                  * The list og other object that this action instance and its state depends on
                  */
@@ -69,9 +66,9 @@ export function action<S>(config: ActionConfigType<S> ) {
                 publish = (): void => {
                     let self = this
                     ctrl.publish(this as unknown as Action<any>)
-                    .then (() => {
-                        self._storeId = ctrl.store.getStoreId(self.className)
-                    })
+                    // not needed anymore .then (() => {
+                    //     self._storeId = ctrl.store.getStoreId(self.className)
+                    // })
                 }          
                 /** 
                 * Set the _cnt_ that counts the number of decorator calls

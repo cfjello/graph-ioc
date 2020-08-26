@@ -207,17 +207,35 @@ class ObjR3  extends Action<R> {
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
     })
 
+    /*
+    Deno.test('It should only run dirty Dependency targets',  async () => { 
+      instS3.state.age = 198
+      instS3.publish()
+      await ctrl.runTarget('ObjQ3') // This will now be dirty
+      let nameR3 = ObjR3.name
+      await ctrl.runTarget('ObjP3')
+
+       // expect(ObjP3.currActionDesc.ran).toBeFalsy()
+       // if (task.name == "ObjS3") expect(task.ran).toBeFalsy()
+       // if (task.name == "ObjQ3") expect(task.ran).toBeTruthy()
+       // if (task.name == "ObjR3") expect(task.ran).toBeTruthy()
+  })
+  */
+
+
     Deno.test('It should only run dirty Dependency Promises',  async () => { 
-        instS3.state.age = 198
+        instS3.state.age = 199
+        instS3.publish()
         await ctrl.runTarget('ObjQ3') // This will now be dirty
         let nameR3 = ObjR3.name
         let actionsToRun = ctrl.getActionsToRun('ObjP3')
         let runChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
         await runChain.run()
         let jobName = runChain.getEventName()
-        let tasks: ActionDescriptor[] = ctrl.activity.get(jobName)!
+        let tasks: Map<string, ActionDescriptor>   = runChain.getActionsToRun()!
+
         /*
-        ran.forEach((val: ActionDescriptor ,idx) => {
+        tasks.forEach((val: ActionDescriptor ,idx) => {
           console.log(val.taskId,val.name, val.ran)
         })
         */ 

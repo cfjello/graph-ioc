@@ -147,7 +147,10 @@ Deno.test('Generator functions should return incremented numbers', () => {
         expect(dep.size).toEqual(3)
         let storeId = ctrl.store.getStoreId('ObjB')
         let B = dep.get('ObjB')!
-        expect(Object.values(B).slice(2,6)).toEqual( ['ObjB', '01.02', storeId, [] ] ) 
+        expect(B.name).toEqual('ObjB')
+        expect(B.ident).toEqual( '01.02')
+        expect(B.storeId).toEqual( storeId )
+        expect(B.children).toEqual([])
     })
   
     @action<D>({ 
@@ -165,10 +168,19 @@ Deno.test('Generator functions should return incremented numbers', () => {
       expect(dep.size).toEqual(4)
       let storeId = ctrl.store.getStoreId('ObjB')
       let B = dep.get('ObjB')!
-      expect(Object.values(B).splice(2,4)).toEqual( ['ObjB', '01.02', storeId, ['ObjD'] ] ) 
+      // console.log( B )
+      expect(B.rootName).toEqual('ObjC')
+      expect(B.name).toEqual('ObjB')
+      expect(B.ident).toEqual( '01.02')
+      expect(B.storeId).toEqual( storeId )
+      expect(B.children).toEqual(['ObjD'])
+ 
       let C = dep.get('ObjC')!
       storeId = ctrl.store.getStoreId('ObjC')
-      expect(Object.values(C).slice(2,6)).toEqual( ['ObjC', '01', storeId, [ 'ObjB', 'ObjA' ] ] ) 
+      expect(C.rootName).toEqual('ObjC')
+      expect(C.name).toEqual('ObjC')
+      expect(C.storeId).toEqual( storeId )
+      expect(C.children).toEqual( [ 'ObjB', 'ObjA' ] )
     }) 
 
     //

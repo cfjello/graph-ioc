@@ -1,4 +1,5 @@
 import * as ctrl from "./Ctrl.ts"
+import { jobIdSeq } from "./generators.ts"
 import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
@@ -6,16 +7,17 @@ import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.
 // import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 import { Mutex }    from "../cxutil/Mutex.ts"
 import { ActionDescriptor } from "./ActionDescriptor.ts"
+import { StateKeys } from "./interfaces.ts"
 
 export abstract class Action<S> { 
     //
     // member variables
     //
-    private _currActionDesc: ActionDescriptor = new ActionDescriptor()
+    public currActionDesc: ActionDescriptor = {} as ActionDescriptor
     /**
      * State is the data that the action will eventually publish for other actions to read
      */
-    public state: S = {} as S
+    public state: S & StateKeys  = {} as S & StateKeys
 
     /**
      * The common Name of both the action and the state data object in the store
@@ -30,11 +32,6 @@ export abstract class Action<S> {
      * Class name of action
      */
     public className: string = ''
-
-    /**
-     * Store id for the state data object within the store
-    */
-    public _storeId: number = -100
 
     /**
      * The list og other object that this action instance and its state depends on
@@ -64,7 +61,7 @@ export abstract class Action<S> {
      * @returns A copy of the state 
      */
     getState = (storeName: string, idx: number = -1 ): any => {
-        return ctrl.getState(storeName, idx) as S
+        return ctrl.getState(storeName, idx) as S & StateKeys
     }
 
     /** 
@@ -73,9 +70,6 @@ export abstract class Action<S> {
     publish = (): void => {
         let self = this
         ctrl.publish( this as unknown as Action<any> )
-        .then (() => {
-            self._storeId = ctrl.store.getStoreId(self.className)
-        })
     }
     
     /** 
@@ -86,9 +80,12 @@ export abstract class Action<S> {
         let self = this
         ctrl.initCounts.set(this.name, ctrl.initCounts.has( this.name ) ? ctrl.initCounts.get(this.name)! + 1 : 1 )
         let _cnt_ = ctrl.initCounts.get(this.name)
-        // if ( _cnt_ === 1 ) {
-            await ctrl.addAction( this as Action<any>,  _cnt_ )
-        // }
+
+        await ctrl.addAction( this as Action<any>,  _cnt_ )
+        // this.state.jobId = this.currActionDesc.jobId
+        // this.state.taskId = this.currActionDesc.taskId
+        // this.state.storeId = this.currActionDesc.storeId
+
         return new Promise<Action<S>>( function(resolve) { resolve( self ) })
     }
 
@@ -96,18 +93,20 @@ export abstract class Action<S> {
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
         let self = this
         let lock = `${actionDesc.name}_run`
+        let res = false
         try {
-            //
             // The same async object should always execute sequencially 
             Mutex.doAtomic( lock , async () => {
-                self._currActionDesc = actionDesc
+                self.currActionDesc = actionDesc
                 let res = (this as any)[this.funcName]()
                 // actionDesc.storeId = ctrl.store.getStoreId(actionDesc.name)
-                Promise.resolve(res as boolean)
             })
         }
         catch(err) {
             throw new Error(`Action.__exec__ctrl__function__  failed to call ${this.className}.${this.funcName}`)
+        }
+        finally {
+            Promise.resolve(res as boolean)
         }
     }
     

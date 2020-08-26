@@ -5,20 +5,31 @@ import { jobIdSeq, taskIdSeq } from "./generators.ts"
 
 export class ActionDescriptor {
     constructor ( 
-        public type:       string               = "desc",
         public rootName:   string               = "",
         public name:       string               = "",
         public ident:      string               = "",
-        public storeId:    number               = -100,
+        public jobId :     number               = -100,  
+        public taskId:     number               = -100,
+        public storeId:    number               = -1,
         public children:   string[]             = [],
         public isDirty:    boolean              = false,
-        public eventName:  string               = "",
-        public jobId :     number | void        = -100,  
-        public taskId:     number | undefined   = -100,                        
+        public eventName:  string               = "",                   
         public ran:        boolean              = false,
         public success:    boolean              = false,
+        public start:      number               = -1,
+        public end:        number               = -1,
+        public type:       string               = "desc",
         public promise: Promise<unknown> | undefined = undefined  
-      ) {
-         
+      ) {      
     }
+}
+
+export function ActionDescriptorFactory( name: string ): ActionDescriptor {
+  return new ActionDescriptor( 
+                name, // rootName
+                name, // name
+                '00.00',  // ident
+                jobIdSeq().next().value  as number,  // jobId
+                taskIdSeq().next().value as number  // taskId
+  )
 }
