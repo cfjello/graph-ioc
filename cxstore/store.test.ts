@@ -1,6 +1,6 @@
 import { store  } from './mod.ts'
 import { expect } from 'https://deno.land/x/expect/mod.ts'
-import strictIndexOf from "https://raw.githubusercontent.com/lodash/lodash/master/.internal/strictIndexOf.js"
+// import strictIndexOf from "https://raw.githubusercontent.com/lodash/lodash/master/.internal/strictIndexOf.js"
 
 class NameAndAge {
     public state: any
@@ -53,6 +53,15 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
             let context3: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
             await store.register('testContext3', context3)
             expect(store.size()).toEqual(3)
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+
+    Deno.test({
+        name: 'Store: It should freeze Store objects', 
+        fn:  () => {
+            expect( Object.isFrozen( store.get('testContext',-1, true )) ).toBeTruthy()
         },
         sanitizeResources: false,
         sanitizeOps: false
@@ -127,7 +136,6 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
         fn: async () => {
             let nameAndAge2 = new NameAndAge({name: 'Benny', age:38,  jobId: -1 , taskId: -1 })
             let storeId_1 = await store.register("NameAndAge2", nameAndAge2.state, 2 ) // Store with treshold
-            console.log(`storeId_1 = ${storeId_1}`)
             // let storeId_1 = store.getStoreId("NameAndAge2")
             expect(store.getStoreId('NameAndAge2')).toEqual(storeId_1)
             expect(store.getStoreId('NameAndAge2', storeId_1)).toEqual(storeId_1)
