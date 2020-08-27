@@ -1,5 +1,6 @@
 import { store  } from './mod.ts'
 import { expect } from 'https://deno.land/x/expect/mod.ts'
+import strictIndexOf from "https://raw.githubusercontent.com/lodash/lodash/master/.internal/strictIndexOf.js"
 
 class NameAndAge {
     public state: any
@@ -18,7 +19,6 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
         sanitizeResources: false,
         sanitizeOps: false
     })
-
 
     Deno.test( {
         name: 'Store: It should add to the store object', 
@@ -126,16 +126,16 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
         name: 'Store: It should delete collection entries according to treshold', 
         fn: async () => {
             let nameAndAge2 = new NameAndAge({name: 'Benny', age:38,  jobId: -1 , taskId: -1 })
-            await store.register("NameAndAge2", nameAndAge2.state, 2 ) // Store with treshold
-
-            let storeId_1 = store.getStoreId("NameAndAge2")
+            let storeId_1 = await store.register("NameAndAge2", nameAndAge2.state, 2 ) // Store with treshold
+            console.log(`storeId_1 = ${storeId_1}`)
+            // let storeId_1 = store.getStoreId("NameAndAge2")
             expect(store.getStoreId('NameAndAge2')).toEqual(storeId_1)
             expect(store.getStoreId('NameAndAge2', storeId_1)).toEqual(storeId_1)
             // Now update
             nameAndAge2.state.name = "Bunny"
             nameAndAge2.state.age  = 18
-            await store.set("NameAndAge2", nameAndAge2.state, -1 , undefined)
-            let storeId_2 = store.getStoreId("NameAndAge2")
+            let storeId_2 = await store.set("NameAndAge2", nameAndAge2.state, -1 , undefined)
+            // let storeId_2 = store.getStoreId("NameAndAge2")
             expect(storeId_2).toEqual(storeId_1 + 1)
             /*
             // Now update

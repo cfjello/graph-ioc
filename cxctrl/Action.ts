@@ -54,6 +54,17 @@ export abstract class Action<S> {
     }
 
     /**
+     * Get a Map to named child states of a given run ( with the same jobId)
+     * 
+     * @param storeName The name of the store object 
+     * @param idx The index of the requested state in the list of immutable stored states, -1 defualt returns the most recently published (current) state
+     * @returns A copy of the state 
+     */
+    getChildState = (storeName: string ): S & StateKeys | undefined  => {
+        return ctrl.store.getChildState(storeName, this.state.jobId ) as S & StateKeys
+    }
+
+    /**
      * Get a copy of the state of a named action
      * 
      * @param storeName The name of the store object 
@@ -80,12 +91,7 @@ export abstract class Action<S> {
         let self = this
         ctrl.initCounts.set(this.name, ctrl.initCounts.has( this.name ) ? ctrl.initCounts.get(this.name)! + 1 : 1 )
         let _cnt_ = ctrl.initCounts.get(this.name)
-
         await ctrl.addAction( this as Action<any>,  _cnt_ )
-        // this.state.jobId = this.currActionDesc.jobId
-        // this.state.taskId = this.currActionDesc.taskId
-        // this.state.storeId = this.currActionDesc.storeId
-
         return new Promise<Action<S>>( function(resolve) { resolve( self ) })
     }
 
@@ -98,16 +104,13 @@ export abstract class Action<S> {
             // The same async object should always execute sequencially 
             Mutex.doAtomic( lock , async () => {
                 self.currActionDesc = actionDesc
-                let res = (this as any)[this.funcName]()
-                // actionDesc.storeId = ctrl.store.getStoreId(actionDesc.name)
+                res = await (this as any)[this.funcName]()
             })
         }
         catch(err) {
             throw new Error(`Action.__exec__ctrl__function__  failed to call ${this.className}.${this.funcName}`)
         }
-        finally {
-            Promise.resolve(res as boolean)
-        }
+        return Promise.resolve(res as boolean)
     }
     
     /**

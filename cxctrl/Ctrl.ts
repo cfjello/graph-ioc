@@ -101,7 +101,6 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
                 action.currActionDesc = actionDesc       
                 graph.addNode(action.name)
                 actions.set(action.name, action)
-                console.log(`Adding Action and graph Node: ${action.name}`)   
             })
         }
         catch (err) {
@@ -155,7 +154,6 @@ let clear = () => {
 export let isDirty = ( actionName: string ): boolean => {
     let storeId = store.getStoreId(actionName)
     let children = graph.dependenciesOf(actionName)
-    // store.setLatches([actionName, ...children])
     let isDirty = false
     children.forEach( (childKey: string) => { 
         let childStoreId = store.getStoreId(childKey)
@@ -359,7 +357,7 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
     return Promise.resolve(resAll)         
 }
 /**
- TODO: rewrite this
+ TODO: rewrite this if really needed
 export let runDependants = ( actionName: string ): boolean => {
         let resAll = true
         if ( graph.hasNode( actionName) ) {

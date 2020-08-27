@@ -1,18 +1,13 @@
 import { StoreIntf, StateMetaData } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "../cxctrl/ActionDescriptor.ts"
 import { StateKeys } from "../cxctrl/interfaces.ts"
-import { storeSeq } from "./generators.ts"
+import { storeIdSeq } from "./generators.ts"
 import cloneDeep    from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
 import clone        from "https://raw.githubusercontent.com/lodash/lodash/master/clone.js"
 import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master/isObject.js"
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
-// import omit         from "https://raw.githubusercontent.com/lodash/lodash/master/omit.js"
-// import assign        from "https://raw.githubusercontent.com/lodash/lodash/master/assign.js"
-// import { equal } from "https://deno.land/std/testing/asserts.ts";
 import { Mutex }    from "../cxutil/Mutex.ts"
-// import { Mutex } from "https://raw.githubusercontent.com/mauvexephos/mutex/master/mod.ts"
-// import { Mutex } from "https://raw.githubusercontent.com/denoland/deno/1b6985ad516e2974b91b63e0acbedf7cdd465c6c/std/async/mutex.ts"
 import { $log }     from "../cxutil/CxLog.ts"
 
 
@@ -25,7 +20,7 @@ let state           = new Map<string, Map<number, any>>()
 let index           = new Map<number, Map<string, any>>()
 let meta            = new Map<string, StateMetaData>()
 let updIdx: number  = 0
-let storeId         = storeSeq();
+// let storeId         = storeIdSeq();
 let config          = new Map<string,any>()
 
 /**
@@ -88,6 +83,28 @@ export function hasStoreId (key: string, storeId:number): boolean {
     }
 
 /**
+ * Determines whether index object exists for a given jobId
+ * 
+ * @param key The name of the indexed object
+ * @param jobId  The jobId of the indexed object
+ * @return boolean
+ */
+export function hasIndexId (key: string, jobId:number ): boolean {
+    return ( index.has(jobId) && index.get(jobId)!.has(key) )
+}
+
+/**
+ * Determines whether index object exists for a given jobId
+ * 
+ * @param key The name of the indexed object
+ * @param jobId  The jobId of the indexed object
+ * @return boolean
+ */
+export function getChildState<S>(key: string, jobId:number ): S | undefined {
+    return hasIndexId(key, jobId) ? index.get(jobId)!.get(key): undefined
+}
+
+/**
  * Get store id of cx store
  * 
  * @param key The name of the stored object
@@ -143,10 +160,9 @@ export function getRef<T>( key: string, _idx: number = -1 ): T & StateKeys{ retu
  * @returns The storeId of the object 
  */
 export async function set<S>( key: string, objRef: S & StateKeys, threshold: number = -1, _actiondesc: ActionDescriptor | undefined  ): Promise<number>  {
-        // console.log(`ORIGINAL: Key: ${key}, stateRef: ${JSON.stringify(objRef)}`)
-        if ( isUndefined( key) ) throw new Error ( "Store.set() must be passed a valid Object key-name to store")     
-        if ( ! isObject( objRef) ) throw new Error ( "Store.set() must be passed an Object to store")
 
+        if (  isUndefined( key) ) throw new Error ( "Store.set() must be passed a valid Object key-name to store")     
+        if ( !isObject( objRef) ) throw new Error ( "Store.set() must be passed an Object to store")
         //
         // If the ActionDescriptor is not initialized ( that is if this was called directly ) then initialize
         // 
@@ -155,7 +171,6 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
         //
         // Do we have a new key? If so we create the meta info
         //
-        //  console.log(`STATE HAS Key: ${key} ` + state.has( key ))
         if ( !state.has( key ) )  {
             let thresholdSize = threshold < 2 ? -1 : threshold
             // console.log(`Initilize meta for: ${key} with cue to check state.has(${key})`)
@@ -174,8 +189,10 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
         //
         // Create new storeId
         //
+        // let _storeId = storeId.next().value as number
+        
         let newMetaInfo: StateMetaData = { 
-            storeId:     storeId.next().value as number, 
+            storeId:     storeIdSeq().next().value as number, 
             prevStoreId: metaInfo.storeId, 
             prevJobId:   actiondesc.jobId , 
             prevTaskId:  actiondesc.taskId, 
@@ -189,14 +206,10 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
             //
             // update the calling objRef with the new keys
             //
-            // objRef.storeId = newMetaInfo.storeId
             objRef.jobId   = actiondesc.jobId
             objRef.taskId  =  actiondesc.taskId
-            let objClone: any = cloneDeep( objRef )
-            // let objClone: any = assign( cloneDeep( objRef ), { storeId: newMetaInfo.storeId, jobId: actiondesc.jobId, taskId: actiondesc.taskId }) as any          
-            // console.log(`CLONE Key: ${key}, stateRef: ${JSON.stringify(objClone)}`)
-            try {
-                
+            let objClone: any = Object.freeze( cloneDeep( objRef ) )
+            try {       
                 //
                 // Store the cloned data
                 //
@@ -208,9 +221,7 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
                 //
                 // set the updated metaData
                 //
-                // console.log(`META Before Update -> Key: ${key}, stateRef: ${JSON.stringify(meta.get(key))}`)
                 meta.set( key, newMetaInfo )
-                // console.log(`META  After Update -> Key: ${key}, stateRef: ${JSON.stringify(meta.get(key))}`)
                 //
                 // Delete expired records, if we have a thresshold
                 //
@@ -218,20 +229,17 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
                     let firstKey  = state.get(key)!.keys().next().value
                     state.get(key)!.delete(firstKey)
                 }
-                // $log.debug(`REGISTER: ${key}:` + JSON.stringify( state.get(key)[state.get(key).length - 1 ] ) )
             }
             catch(err) {
                 //
                 // Roll back the objRef update
                 //
-                // objRef.storeId = newMetaInfo.prevStoreId
                 objRef.jobId   = newMetaInfo.prevJobId
                 objRef.taskId  = newMetaInfo.prevTaskId
-                // objRef = merge(objRef, { storeId: metaInfo.storeId, jobId: metaInfo.prevJobId, taskId: metaInfo.prevTaskId })
                 throw new Error ( `Store.set() failed to store data for ${key}`) 
             }
         }) 
-        return Promise.resolve(metaInfo.storeId)
+        return Promise.resolve(newMetaInfo.storeId)
     }
 
 /**
