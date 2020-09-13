@@ -13,14 +13,17 @@ export interface StateKeys {
     taskId: number
 }
 
+interface ActionIntf {
+    new (name: string): ActionIntf
+}
+
 export type ActionConfigType<S> = {
     name?:   string
     ctrl?:   string
     state:   S
-    _cnt_?:  number // internal control param
+    comp?:   string[]
+    _cnt_?:  number // internal object counter
 }
-
-
 
 export type cloneConfigType<S> = {
     action:  Action<S>

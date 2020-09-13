@@ -1,11 +1,12 @@
 import * as ctrl from "./Ctrl.ts"
 import { jobIdSeq } from "./generators.ts"
-import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
+// import * as _ from "https://deno.land/x/lodash@4.17.19/lodash.js"
+// import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
 // import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
 // import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
-import { Mutex }    from "../cxutil/Mutex.ts"
+import { Mutex, ee }    from "../cxutil/mod.ts"
 import { ActionDescriptor } from "./ActionDescriptor.ts"
 import { StateKeys } from "./interfaces.ts"
 
@@ -14,15 +15,18 @@ export abstract class Action<S> {
     // member variables
     //
     public currActionDesc: ActionDescriptor = {} as ActionDescriptor
+
     /**
      * State is the data that the action will eventually publish for other actions to read
      */
     public state: S & StateKeys  = {} as S & StateKeys
 
+   
     /**
      * The common Name of both the action and the state data object in the store
      */
     public name: string = ''
+
     /**
      * The name of the controller Function to call within the action instance
      */
@@ -91,11 +95,10 @@ export abstract class Action<S> {
         let self = this
         ctrl.initCounts.set(this.name, ctrl.initCounts.has( this.name ) ? ctrl.initCounts.get(this.name)! + 1 : 1 )
         let _cnt_ = ctrl.initCounts.get(this.name)
-        await ctrl.addAction( this as Action<any>,  _cnt_ )
+        await ctrl.addAction( this as Action<any>, _cnt_ )
         return new Promise<Action<S>>( function(resolve) { resolve( self ) })
     }
 
-    
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
         let self = this
         let lock = `${actionDesc.name}_run`
@@ -104,7 +107,7 @@ export abstract class Action<S> {
             // The same async object should always execute sequencially 
             Mutex.doAtomic( lock , async () => {
                 self.currActionDesc = actionDesc
-                res = await (this as any)[this.funcName]()
+                res = await (this as any)[self.funcName]()
             })
         }
         catch(err) {

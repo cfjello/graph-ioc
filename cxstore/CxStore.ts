@@ -7,8 +7,9 @@ import clone        from "https://raw.githubusercontent.com/lodash/lodash/master
 import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master/isObject.js"
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
-import { Mutex }    from "../cxutil/Mutex.ts"
-import { $log }     from "../cxutil/CxLog.ts"
+import { Mutex, $log, ee } from "../cxutil/mod.ts"
+// import { Mutex }    from "../cxutil/Mutex.ts"
+// import { $log }     from "../cxutil/CxLog.ts"
 
 
 
@@ -93,6 +94,10 @@ export function hasIndexId (key: string, jobId:number ): boolean {
     return ( index.has(jobId) && index.get(jobId)!.has(key) )
 }
 
+export function getJobStoreId( key: string, jobId:number ) : number {
+    return hasIndexId( key, jobId ) ? index.get(jobId)!.get(key) : getStoreId(key)
+}
+
 /**
  * Determines whether index object exists for a given jobId
  * 
@@ -159,14 +164,14 @@ export function getRef<T>( key: string, _idx: number = -1 ): T & StateKeys{ retu
  * @param threshold The number of entries in the immutable collection to keep ( less than 2 for unlimited, otherwise the number given )
  * @returns The storeId of the object 
  */
-export async function set<S>( key: string, objRef: S & StateKeys, threshold: number = -1, _actiondesc: ActionDescriptor | undefined  ): Promise<number>  {
+export async function set<S>( key: string, objRef: S & StateKeys, threshold: number = -1, _actionDesc: ActionDescriptor | undefined  ): Promise<number>  {
 
         if (  isUndefined( key) ) throw new Error ( "Store.set() must be passed a valid Object key-name to store")     
         if ( !isObject( objRef) ) throw new Error ( "Store.set() must be passed an Object to store")
         //
         // If the ActionDescriptor is not initialized ( that is if this was called directly ) then initialize
         // 
-        let actiondesc: ActionDescriptor = _actiondesc === undefined ? ActionDescriptorFactory(key): _actiondesc
+        let actionDesc: ActionDescriptor = _actionDesc === undefined ? ActionDescriptorFactory(key): _actionDesc
 
         //
         // Do we have a new key? If so we create the meta info
@@ -178,36 +183,30 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
             state.set( key, new Map<number,any>() ) 
         }
 
-        if ( ! index.has( actiondesc.jobId ) ) { index.set( actiondesc.jobId , new Map<string,any>() ) }   
+        if ( ! index.has( actionDesc.jobId ) ) { index.set( actionDesc.jobId , new Map<string,any>() ) }   
 
         //
         // Now prepare to insert the object
         // 
         let metaInfo = meta.get(key)!     
-        // if ( metaInfo.storeId < 0 ) { 
-        // Dropped, since lodash dropped omit: ! isEqual(omit(objRef,[ 'jobId', 'taskId', 'storeId' ]) , omit( state.get(key)!.get( metaInfo.storeId ) as S, [ 'jobId', 'taskId', 'storeId' ] ) ) {
-        //
-        // Create new storeId
-        //
-        // let _storeId = storeId.next().value as number
         
         let newMetaInfo: StateMetaData = { 
             storeId:     storeIdSeq().next().value as number, 
             prevStoreId: metaInfo.storeId, 
-            prevJobId:   actiondesc.jobId , 
-            prevTaskId:  actiondesc.taskId, 
+            prevJobId:   actionDesc.jobId , 
+            prevTaskId:  actionDesc.taskId, 
             threshold:   metaInfo.threshold
         } 
 
-        let lock = `${key}_write`
+        let lock     = `${key}_write`
         await Mutex.doAtomic( lock, async () => {
             //
             // Build and Store the data
             //
             // update the calling objRef with the new keys
             //
-            objRef.jobId   = actiondesc.jobId
-            objRef.taskId  =  actiondesc.taskId
+            objRef.jobId   = actionDesc.jobId
+            objRef.taskId  = actionDesc.taskId
             let objClone: any = Object.freeze( cloneDeep( objRef ) )
             try {       
                 //
@@ -217,7 +216,7 @@ export async function set<S>( key: string, objRef: S & StateKeys, threshold: num
                 //
                 // store the job-index reference
                 //
-                index.get(actiondesc.jobId)!.set(key, objClone ) 
+                index.get(actionDesc.jobId)!.set(key, objClone ) 
                 //
                 // set the updated metaData
                 //

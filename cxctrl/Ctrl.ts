@@ -1,16 +1,12 @@
 import {CxGraph} from "https://raw.githubusercontent.com/cfjello/cxgraph/master/mod.ts"
 import * as _store  from "../cxstore/CxStore.ts"
-import {$log, perf, $plog} from "../cxutil/mod.ts"
+import {$log, perf, $plog, ee, Mutex } from "../cxutil/mod.ts"
 import { RunIntf } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "./ActionDescriptor.ts"
 import { Action } from './Action.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
-import EventEmitter  from "https://raw.githubusercontent.com/denolibs/event_emitter/master/lib/mod.ts"
-import { Mutex } from "../cxutil/Mutex.ts"
-//
-// Event emitter for starting execution of promise trees
-// 
-export let ee = new EventEmitter()
+// import { Mutex } from "../cxutil/Mutex.ts"
+
 export let store = _store
 
 //
@@ -121,11 +117,11 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
  * Remove an action from the Ctrl structure
  * 
  * @param actionName Name of the action to be removed
- * @return Success or failure in a boolean
+ * @return void Promise
  */
 export let removeAction = async( actionName: string ): Promise<void> => {
     //
-    // TODO: Handle multiple locks
+    // TODO: Handle multiple locks (write read ...)
     //
     if ( store.isRegistered(actionName) ) {
         await store.unregister(actionName)
@@ -133,6 +129,16 @@ export let removeAction = async( actionName: string ): Promise<void> => {
         actions.delete(actionName)
         initCounts.delete(actionName)
     }
+}
+
+/**
+ * Check if an action exists in the Ctrl actions map
+ * 
+ * @param actionName Name of the action
+ * @return Success or failure in a boolean
+ */
+export let hasAction = ( actionName: string ): boolean => {
+    return actions.has(actionName)
 }
 
 /**
@@ -276,12 +282,14 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                     let res = false 
                     let dirty = false
                     p.mark('P_' + key, actionDesc);
+                    let actionObj = actions.get(key) as Action<any>
                     if ( (dirty = isDirty(key) || runAll ) ) {
-                        let actionObj = actions.get(key) as Action<any>
                         res = await actionObj.__exec__ctrl__function__ (actionDesc)
                     }
                     actionDesc.ran      = dirty || runAll
-                    actionDesc.success  = res || ! dirty
+                    actionDesc.success  = res || ! dirty                   
+                    actionDesc.storeId = store.getJobStoreId( key, actionDesc.jobId )
+                    actionObj.currActionDesc = actionDesc
                     p.mark('P_' + key, actionDesc)
                     resolve(key)
                 })
@@ -300,12 +308,24 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
         getJobId():        number  { return jobId },
         getActionsToRun(): Map<string, ActionDescriptor>  { return actionsToRun },
         async run():       Promise<void> { 
+                                    //
                                     // Emit the event that starts the 
                                     // execution of the promise chains
+                                    //
                                     ee.emit( eventName ) 
                                     return new Promise( (resolve, reject) => { 
+                                        //
                                         // Wait for the completion event
-                                        ee.on(`${eventName}_fin`, () => resolve() )
+                                        //
+                                        ee.on(`${eventName}_fin`, () => {
+                                            for ( let [k, ad ] of this.getActionsToRun() ) {
+                                                //
+                                                // Emit a publish event
+                                                //
+                                                ad.ran && ee.emit( `${ad.name}_pub` )
+                                            }
+                                            resolve() 
+                                        })
                                     })
                                 }
     }

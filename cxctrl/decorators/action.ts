@@ -6,7 +6,7 @@ import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.
 export function action<S>(config: ActionConfigType<S> ) {
     return  function <T extends { new(...args: any[]): {} }>(constructor: T) { 
         config.name = isUndefined(config.name) ? constructor.name : config.name !
-        // console.log( `creating constructor for ${config.name}  --> constructor.name defined: ${! isUndefined(constructor.name)} ` ) // and prototype: ${Object.getPrototypeOf(constructor)}
+        console.log( `creating constructor for ${config.name}  --> constructor.name defined: ${! isUndefined(constructor.name)} ` ) // and prototype: ${Object.getPrototypeOf(constructor)}
             return class extends constructor {   
                 /**
                 * The common Name of both the action and the state data object in the store
@@ -27,6 +27,11 @@ export function action<S>(config: ActionConfigType<S> ) {
                 * State is the data that the action will eventually publish for other actions to read
                 */
                 state: S & StateKeys  =  merge( cloneDeep( config.state ), { jobId: -1, taskId: -1 } )
+
+                /**
+                * The list of composition classes added to this asction class
+                */
+                __comps__ = config.comp !== undefined ? config.comp : []
             }
         }
 }
