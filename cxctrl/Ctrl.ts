@@ -1,13 +1,12 @@
 import {CxGraph} from "https://raw.githubusercontent.com/cfjello/cxgraph/master/mod.ts"
-import * as _store  from "../cxstore/CxStore.ts"
-import {$log, perf, $plog, ee, Mutex } from "../cxutil/mod.ts"
+import { CxStore }  from "../cxstore/CxStore.ts"
+import {$log, perf, $plog, ee } from "../cxutil/mod.ts"
 import { RunIntf } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "./ActionDescriptor.ts"
 import { Action } from './Action.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
-// import { Mutex } from "../cxutil/Mutex.ts"
 
-export let store = _store
+export let store = new CxStore()
 
 //
 // Simple Performance logger instance
@@ -278,10 +277,10 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
         if ( [ ...dependsOn.values() ].length > 0 )  {             
             actionsToRun.get(key)!.promise = Promise.all([ ...dependsOn.values() ] )
             .then( () => {
-                return new Promise( async (resolve) => {  
+                return new Promise( async (resolve) => {
+                    p.mark('P_' + key, actionDesc);  
                     let res = false 
                     let dirty = false
-                    p.mark('P_' + key, actionDesc);
                     let actionObj = actions.get(key) as Action<any>
                     if ( (dirty = isDirty(key) || runAll ) ) {
                         res = await actionObj.__exec__ctrl__function__ (actionDesc)
