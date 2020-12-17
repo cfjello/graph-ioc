@@ -1,8 +1,5 @@
-/logs
 /lokijs
 /JSONPath
-/cxrest
 /cxctrl/debugging.ts
 cxstore/StoreObjBundling.TBD
 cxctrl/lodashTest.ts
-examples/dynamicRest

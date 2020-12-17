@@ -1,0 +1,29 @@
+CREATE TABLE `customers`
+ 	PRIMARY KEY (`customerNumber`),
+  	KEY `salesRepEmployeeNumber` (`salesRepEmployeeNumber`)
+	CONSTRAINT `customers_ibfk_1` FOREIGN KEY (`salesRepEmployeeNumber`) REFERENCES `employees` (`employeeNumber`)
+
+CREATE TABLE `employees` (
+	KEY `reportsTo` (`reportsTo`),
+  	KEY `officeCode` (`officeCode`),
+  	CONSTRAINT `employees_ibfk_1` FOREIGN KEY (`reportsTo`) REFERENCES `employees` (`employeeNumber`),
+  	CONSTRAINT `employees_ibfk_2` FOREIGN KEY (`officeCode`) REFERENCES `offices` (`officeCode`)
+
+
+CREATE TABLE `orderdetails` (
+ 	PRIMARY KEY (`orderNumber`,`productCode`),
+  	KEY `productCode` (`productCode`),
+  	CONSTRAINT `orderdetails_ibfk_1` FOREIGN KEY (`orderNumber`) REFERENCES `orders` (`orderNumber`),
+  	CONSTRAINT `orderdetails_ibfk_2` FOREIGN KEY (`productCode`) REFERENCES `products` (`productCode`)
+
+CREATE TABLE `orders` (
+  	PRIMARY KEY (`orderNumber`),
+  	KEY `customerNumber` (`customerNumber`),
+  	CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`customerNumber`) REFERENCES `customers` (`customerNumber`)
+
+CREATE TABLE `payments` (
+ 	PRIMARY KEY (`customerNumber`,`checkNumber`),
+  	CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`customerNumber`) REFERENCES `customers` (`customerNumber`)
+
+CREATE TABLE `productlines` (
+	PRIMARY KEY (`productLine`)

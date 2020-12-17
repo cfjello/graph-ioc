@@ -41,7 +41,7 @@ await log.setup({
     handlers: {
       console:  new log.handlers.ConsoleHandler("DEBUG"),
       ctrlFile: new log.handlers.FileHandler("DEBUG", {
-        filename: path.resolve(`${$logDir}/ctrl/ctrl.log`),
+        filename: path.resolve(`${$logDir}/ctrl.log`),
         mode: 'a',
         formatter: (logRecord: LogRecord)  => {
           let dateEntry = logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
@@ -56,7 +56,7 @@ await log.setup({
         }
       }),
       perfFile: new log.handlers.FileHandler("INFO", {
-        filename: path.resolve(`${$logDir}/perf/perf.log`),
+        filename: path.resolve(`${$logDir}/perf.log`),
         mode: 'a',
         formatter: (perfRecord )  => {
           let dateEntry = perfRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
