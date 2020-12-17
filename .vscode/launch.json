@@ -5,15 +5,25 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Deno",
+            "name": "Deno RUN <file>",
             "type": "node",
             "request": "launch",
             "cwd": "${workspaceFolder}\\cxctrl",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--config", "tsconfig.json", "${file}"],
+            "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
             "port": 9229,
             "outputCapture": "std",
             "console": "integratedTerminal"
-        }
+        },
+        {
+            "name": "Deno TEST <file>",
+            "type": "node",
+            "request": "launch",
+            "runtimeExecutable": "deno",
+            "runtimeArgs": ["test", "--inspect-brk",  "-A", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
+            "port": 9229,
+            "outputCapture": "std",
+            "console": "integratedTerminal"
+          },
     ]
 }

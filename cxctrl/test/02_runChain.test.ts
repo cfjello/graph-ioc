@@ -19,13 +19,13 @@ type Q = {name:string, age: number}
 type R = {name:string, age: number}
 type S = {name:string, age: number}
 
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjP  extends Action<P> { ctrl():boolean { this.publish(); return true } }
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjP1 extends Action<P> { ctrl():boolean { this.publish(); return true } }
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjP2 extends Action<P> {ctrl():boolean { this.publish(); return true } }
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjP3 extends Action<P> {
   ctrl():boolean { 
     this.state.name = `P3:[]`
@@ -34,7 +34,7 @@ class ObjP3 extends Action<P> {
   } 
 }
 
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ  extends Action<Q> {
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS');
@@ -43,7 +43,7 @@ class ObjQ  extends Action<Q> {
       return true
   }
 }
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ1  extends Action<Q> { 
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS1');
@@ -53,7 +53,7 @@ class ObjQ1  extends Action<Q> {
   }
 }
 
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ2  extends Action<Q> { 
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS2');
@@ -63,7 +63,7 @@ class ObjQ2  extends Action<Q> {
   }
 }
 
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ3  extends Action<Q> { 
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS3');
@@ -73,7 +73,7 @@ class ObjQ3  extends Action<Q> {
   }
 }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR  extends Action<R> { 
     ctrl():boolean {
       let stateP: Readonly<P> = ctrl.getState("ObjP");
@@ -84,7 +84,7 @@ class ObjR  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'R', age:38 } } ) 
+  @action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR1  extends Action<R> { 
   ctrl():boolean {
     let stateP: Readonly<P> = ctrl.getState("ObjP1");
@@ -95,7 +95,7 @@ class ObjR1  extends Action<R> {
   }
 }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR2  extends Action<R> { 
   ctrl():boolean {
     let stateP: Readonly<P> = ctrl.getState("ObjP2");
@@ -106,7 +106,7 @@ class ObjR2  extends Action<R> {
   }
 }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR3  extends Action<R> { 
   ctrl():boolean {
     // $log.debug(`Into OBJC3 ctrl()`)
@@ -118,7 +118,7 @@ class ObjR3  extends Action<R> {
   }
 }
 
-@action( { state: {name: 'S', age:38 } } ) 
+@action( { state: {name: 'S', age:38 }, ctrl: 'ctrl', init: true } ) 
   class ObjS  extends Action<S> { 
     ctrl():boolean {
       this.publish()
@@ -126,7 +126,7 @@ class ObjR3  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'S', age:38 } } ) 
+  @action( { state: {name: 'S', age:38 }, ctrl: 'ctrl', init: true } ) 
   class ObjS1  extends Action<S> { 
     ctrl():boolean {
       this.publish()
@@ -134,7 +134,7 @@ class ObjR3  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'S', age:38 } } ) 
+  @action( { state: {name: 'S', age:38 }, ctrl: 'ctrl', init: true } ) 
   class ObjS2  extends Action<S> { 
   ctrl():boolean {
     this.publish()
@@ -142,7 +142,7 @@ class ObjR3  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'S', age:38 } } ) 
+  @action( { state: {name: 'S', age:38 }, ctrl: 'ctrl', init: true } ) 
   class ObjS3  extends Action<S> { 
     ctrl():boolean {
       this.state.name = `S3:[]`
@@ -157,7 +157,7 @@ class ObjR3  extends Action<R> {
   // ctrl.removeAction("ObjQ3")
   // ctrl.removeAction("ObjS3")
 
-  // describe('Ctrl can run an Action.ctrl() function as a promise',  () => {
+  // describe('03 - Ctrl can run an Action.ctrl() function as a promise',  () => {
     let instR3 = await new ObjR3().register()
     let instP3 = await new ObjP3().register()
     let instQ3 = await new ObjQ3().register()
@@ -166,7 +166,7 @@ class ObjR3  extends Action<R> {
     let deps2 = instQ3.setDependencies('ObjS3')
     let deps = instR3.setDependencies('ObjP3','ObjQ3')
     
-    Deno.test( 'Correct Dependencies before Running execution test', () => {
+    Deno.test( '03 - Correct Dependencies before Running execution test', () => {
       expect(deps2).toEqual(['ObjS3']) 
       expect(deps).toEqual(['ObjP3', 'ObjQ3'])
     })
@@ -187,7 +187,7 @@ class ObjR3  extends Action<R> {
   */ 
  
 
-    Deno.test('It should RUN the Dependency Promises in order',  async () => {       
+    Deno.test('03 - It should RUN the Dependency Promises in order',  async () => {       
         let nameR3 = ObjR3.name
         let actionsToRun = ctrl.getActionsToRun('ObjR3')
         expect(actionsToRun.size).toEqual(4)
@@ -197,7 +197,7 @@ class ObjR3  extends Action<R> {
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
     })
 
-    Deno.test ('It should NOT RUN again with no dirty dependencies',  async () => { 
+    Deno.test ('03 - It should NOT RUN again with no dirty dependencies',  async () => { 
         let nameR3 = ObjR3.name
         let actionsToRun = ctrl.getActionsToRun('ObjR3')
         let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
@@ -223,7 +223,7 @@ class ObjR3  extends Action<R> {
   */
 
 
-    Deno.test('It should only run dirty Dependency Promises',  async () => { 
+    Deno.test('03 - It should only run dirty Dependency Promises',  async () => { 
         instS3.state.age = 199
         instS3.publish()
         await ctrl.runTarget('ObjQ3') // This will now be dirty
@@ -248,7 +248,7 @@ class ObjR3  extends Action<R> {
     })
 
 
-    @action( { state: {name: 'S', age:38 } } ) 
+    @action( { state: {name: 'S', age:38 }, ctrl: 'ctrl', init: true } ) 
     class ObjS4  extends Action<S> { 
       ctrl():boolean {
         this.state.name = `S4:[]`
@@ -257,7 +257,7 @@ class ObjR3  extends Action<R> {
         }
     }
 
-    Deno.test('It can remove a registration',  async () => { 
+    Deno.test('03 - It can remove a registration',  async () => { 
       let instR4 = await new ObjS4().register()
       expect( ctrl.actions.has('ObjS4') ).toBeTruthy()
       await ctrl.removeAction("ObjS4")

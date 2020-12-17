@@ -3,6 +3,7 @@
 		"experimentalDecorators": true,
 		"alwaysStrict": false,
 		"noImplicitUseStrict": true,
-		"noImplicitAny": true
+		"noImplicitAny": true,
+		"isolatedModules": false
 	}
 }

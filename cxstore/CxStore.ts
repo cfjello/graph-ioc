@@ -62,7 +62,7 @@ export class CxStore {
     }
 
     /**
-     * Gets size , the number of entries, in the store
+     * Gets size , the number of entries, in the whole store
      * 
      * @return number
      */
@@ -138,10 +138,10 @@ export class CxStore {
      */
     get<T>( key: string, _storeId:number = -1, getRefOnly: boolean = false ):  T & StateKeys {
             let storeId = this.getStoreId( key, _storeId )
-            if ( getRefOnly )
-                return this.state.get(key)!.get(storeId) as  T & StateKeys
-            else 
-                return cloneDeep( this.state.get(key)!.get(storeId) ) as T & StateKeys
+            // if ( getRefOnly )
+            return this.state.get(key)!.get(storeId) as  T & StateKeys
+            // else 
+            //    return cloneDeep( this.state.get(key)!.get(storeId) ) as T & StateKeys
         }
 
     /**
@@ -149,8 +149,9 @@ export class CxStore {
      * 
      * @param key The name of the store object 
      * @returns A reference to the stored object
-     */
-    getRef<T>( key: string, _idx: number = -1 ): T & StateKeys{ return this.get( key, _idx, true) as  T & StateKeys }
+
+     NOT needed seince we do freeze --> getRef<T>( key: string, _idx: number = -1 ): T & StateKeys{ return this.get( key, _idx, true) as  T & StateKeys }
+    */
 
     /**
      * Saves a deep copy of an object to the Store
@@ -218,7 +219,8 @@ export class CxStore {
                     this.meta.set( key, newMetaInfo )
                     //
                     // Delete expired records, if we have a thresshold
-                    //
+                    // TODO: change this to consider jobId to insure a consident view over multiple objects
+                    // 
                     if ( metaInfo.threshold > 1 && this.state.get(key)!.size > metaInfo.threshold ) {
                         let firstKey  = this.state.get(key)!.keys().next().value
                         this.state.get(key)!.delete(firstKey)

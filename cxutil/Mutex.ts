@@ -1,5 +1,5 @@
 // Copyright 2018-2020 the Deno authors. All rights reserved. MIT license.
-// Comment: This file is p.t. missing from deno/x, so provided here
+// COMMENT: This file is currently missing from deno/x, so provided here
 import { deferred } from "https://deno.land/std/async/deferred.ts";
 
 export interface Locker {

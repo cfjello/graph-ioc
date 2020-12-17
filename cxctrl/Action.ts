@@ -8,9 +8,13 @@ import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.
 // import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 import { Mutex, ee }    from "../cxutil/mod.ts"
 import { ActionDescriptor } from "./ActionDescriptor.ts"
-import { StateKeys } from "./interfaces.ts"
+import { MetaType, StateKeys } from "./interfaces.ts"
 
 export abstract class Action<S> { 
+
+    constructor() {
+        // console.log('Running Action Constructor')
+    }
     //
     // member variables
     //
@@ -21,21 +25,11 @@ export abstract class Action<S> {
      */
     public state: S & StateKeys  = {} as S & StateKeys
 
-   
-    /**
-     * The common Name of both the action and the state data object in the store
+     /**
+     * Meta is the meta-data this object and action
      */
-    public name: string = ''
+    public meta: MetaType = {} as MetaType
 
-    /**
-     * The name of the controller Function to call within the action instance
-     */
-    public funcName: any;
-
-    /**
-     * Class name of action
-     */
-    public className: string = ''
 
     /**
      * The list og other object that this action instance and its state depends on
@@ -53,7 +47,7 @@ export abstract class Action<S> {
      */
     setDependencies = (... args: string[] ): string [] => { 
         this.dependencies = uniq( union( this.dependencies, args ) ) 
-        ctrl.addDependencies( this.name, this.dependencies )
+        ctrl.addDependencies( this.meta.name!, this.dependencies )
         return this.dependencies
     }
 
@@ -90,12 +84,14 @@ export abstract class Action<S> {
     /** 
     * Register the Action Object
     */
-    protected _cnt_: number = 0
+
     register = async(): Promise<any> => { 
         let self = this
-        ctrl.initCounts.set(this.name, ctrl.initCounts.has( this.name ) ? ctrl.initCounts.get(this.name)! + 1 : 1 )
-        let _cnt_ = ctrl.initCounts.get(this.name)
+        let name = this.meta.name! as string
+        ctrl.initCounts.set( name, ctrl.initCounts.has( name ) ? ctrl.initCounts.get(name)! + 1 : 1 )
+        let _cnt_ = ctrl.initCounts.get(name)
         await ctrl.addAction( this as Action<any>, _cnt_ )
+        // return .then( (resolve) { resolve( self ) } )
         return new Promise<Action<S>>( function(resolve) { resolve( self ) })
     }
 
@@ -103,16 +99,17 @@ export abstract class Action<S> {
         let self = this
         let lock = `${actionDesc.name}_run`
         let res = false
-        try {
-            // The same async object should always execute sequencially 
-            Mutex.doAtomic( lock , async () => {
+        
+        // The same async object should always execute sequencially 
+        Mutex.doAtomic( lock , async () => {
+            try {
                 self.currActionDesc = actionDesc
-                res = await (this as any)[self.funcName]()
-            })
-        }
-        catch(err) {
-            throw new Error(`Action.__exec__ctrl__function__  failed to call ${this.className}.${this.funcName}`)
-        }
+                res = await (this as any)[self.meta.funcName!]()
+            }
+            catch(err) {
+                throw new Error(`Action.__exec__ctrl__function__  failed to call ${self.meta.className}.${self.meta.funcName} due to ${err}`)
+            }
+        })
         return Promise.resolve(res as boolean)
     }
     

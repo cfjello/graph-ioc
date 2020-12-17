@@ -16,9 +16,7 @@ export class ActionDescriptor {
         public eventName:  string               = "",                   
         public ran:        boolean              = false,
         public success:    boolean              = false,
-        public start:      number               = -1,
-        public end:        number               = -1,
-        public type:       string               = "desc",
+        // public type:       string               = "desc",
         public promise: Promise<unknown> | undefined = undefined  
       ) {      
     }

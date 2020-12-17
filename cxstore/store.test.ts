@@ -1,6 +1,8 @@
-import { store  } from './mod.ts'
+import { CxStore }  from "./mod.ts"
 import { expect } from 'https://deno.land/x/expect/mod.ts'
 // import strictIndexOf from "https://raw.githubusercontent.com/lodash/lodash/master/.internal/strictIndexOf.js"
+
+let store = new CxStore()
 
 class NameAndAge {
     public state: any

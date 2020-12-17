@@ -1,14 +1,26 @@
 import { $plog } from './CxLog.ts' 
 import  merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 import  ShortUniqueId  from 'https://cdn.jsdelivr.net/npm/short-unique-id@latest/short_uuid/mod.ts';
-import { PerfMeasure, PerfLogRec} from "./interfaces.ts"
+import { ActionDescriptor} from "../cxctrl/ActionDescriptor.ts"
+
+export type  PerfMeasureType = { 
+    type: string,
+    action: string,
+    token: string, 
+    transaction?: number, 
+    start: number, 
+    end: number | undefined, 
+    ms: number | undefined
+}
+
+// export type PerfMeasure = PerfMeasureType & ( ActionDescriptor | {} )
 
 /**
  * Perf Class - Simple performance Monitoring class that can be instanciated using 
  * the logging function of your choice, e.g. console or Bunyan
  */
-export class Perf {
-    perf = new Map<string, PerfMeasure>()
+class Perf<P> {
+    perf = new Map<string, PerfMeasureType & P>()
     private _enabled: boolean = false
     /**
      * Gets enabled
@@ -24,23 +36,13 @@ export class Perf {
         this._enabled = value;
     }
 
-    private _suid: string = ''
-    public get suid(): string {
-        return this._suid;
-    }
-
-    public set suid(value: string) {
-        this._suid = value;
-    }
-
     /**
      * Creates an instance of perf.
-     * @param logger The looging function, e.g. console or Bunyan
+     * @param logger The looging function, e.g. Deno logger
      * @param logLevel The log level as defined by the logger added, example 'info' or 'warn' 
      */
-    constructor( private logger: any, private logLevel: string, suid: string ) {
+    constructor( private logger: any, private logLevel: string ) {
         this.enabled = true
-        this.suid = suid
     }
 
     /**
@@ -54,15 +56,25 @@ export class Perf {
      * @param token Name of the measurement 
      * @param [desc] Optional additional description parameters can be added in this object
      */
-    mark( token: string, desc: {} = {} ) {
+    mark( token: string, desc: P = {} as P ) {
         if ( this.enabled ) {
             if ( ! this.perf.has(token) || this.perf.get(token)!.end !== undefined ) {
-                this.perf.set(token, { suid: this.suid, start: performance.now(), end: undefined , desc: JSON.stringify(desc) }  ) 
+                let perfRec: PerfMeasureType & P  = merge ( { 
+                    type:  'perf',
+                    token: token, 
+                    start: performance.now(), 
+                    end:   undefined ,
+                    ms:    undefined  
+                }, desc )
+                this.perf.set(token, perfRec) 
             }
             else if ( this.perf.has(token) ) {
-                // let startTime = this.perf.get(token)!.start
-                this.perf.get(token)!.end = performance.now() 
-                this.logMeasure(token) // .then( () => {} )
+                let entry: PerfMeasureType & P = this.perf.get(token)!
+                entry.end = performance.now() 
+                entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
+                let logEntry: PerfMeasureType & P = merge(entry, desc)
+                $plog.info( logEntry as unknown )
+                // this.perf.delete(token)
             }
             else {
                 throw new Error(`CxPerf.mark() - token ${token} does not exist`)
@@ -75,15 +87,14 @@ export class Perf {
      * @param token The name of the performance measurement
      * @returns  A performance descriptor object
      */
-    getPerfRec( token: string ): PerfLogRec  {
-        let entry = this.perf.get(token)!
-        return merge( 
-            entry,
-            { 
-                type: 'perf', 
-                token: token,  
-                ms:  ( entry.end === undefined ? 0 : entry.end - entry.start ) ,
-            })
+    get( token: string ): PerfMeasureType & P {
+        try {
+            return this.perf.get(token)!
+        }
+        catch (err) {
+            throw err
+        }
+        
     }
 
     /**
@@ -92,27 +103,26 @@ export class Perf {
      * @param [level] The log level (if not provided, it default to the logLevel given in the constructor)
      */
     async logMeasure( token: string ) {
-        let msg = JSON.stringify(this.getPerfRec( token ))
-        $plog.info( msg )
+        let entry: PerfMeasureType & P = this.perf.get(token)!
+        entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
+        $plog.info( entry as unknown )
     }
     
     
     //['perfFile'].flush();
 
     /**
-     * Lists the whole current perf map in the log file
+     * Lists the whole current active perf map to the log file
      */
     listPerfMap() {
         this.perf.forEach( (value, token)  => {
             this.logMeasure(token)
-            let msg = JSON.stringify(this.getPerfRec( token ))
-            $plog.info( msg )
         })
     }
 }
 
 /**
-*   Provides a Perf instance using the Bunyan logger that can be imported accross various modules in a project  
+*   Provides a Perf instance using the logger and can be imported accross various modules in a project  
 */
 const processUuid = new ShortUniqueId() // unique process identifier 
-export let perf = new Perf( $plog, 'info', processUuid() )
+export let perf = new Perf<ActionDescriptor>( $plog, 'INFO' )

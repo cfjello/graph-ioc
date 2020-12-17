@@ -39,7 +39,8 @@ Deno.test('Generator functions should return incremented numbers', () => {
 
 */
     @action<A>({
-      state: {name: 'Fidel', age: 85}
+      state: {name: 'Fidel', age: 85},
+      init: true
     })
     class NameAndAge extends Action<A> {
         constructor() {
@@ -54,24 +55,25 @@ Deno.test('Generator functions should return incremented numbers', () => {
     let nameAndAge = await new NameAndAge().register()
     // console.log(`NAA constructor name: ${nameAndAge2.constructor.name}`)
 
-    Deno.test('Action Object should register under the default name', () => {
-        expect(ctrl.store.isRegistered(nameAndAge.name)).toBeTruthy()
+    Deno.test('01 - Action Object should register under the default name', () => {
+        let boolRes = ctrl.store.isRegistered(nameAndAge.meta.name)
+        expect(boolRes).toBeTruthy()
     })
 
-    Deno.test('It should create an Store object entry', () => {
-        let state = ctrl.getState(nameAndAge.name);
+    Deno.test('01 - It should create an Store object entry', () => {
+        let state = ctrl.getState(nameAndAge.meta.name);
         expect(state).toBeDefined()
         // console.log(inspect(state))
         expect(state.age).toEqual(85)
     });
 
-    Deno.test('It should contain a Graph object', () => {
-        expect(nameAndAge.name).toEqual('NameAndAge')
+    Deno.test('01 - It should contain a Graph object', () => {
+        expect(nameAndAge.meta.name).toEqual('NameAndAge')
         expect(ctrl.graph).toBeDefined()
-        expect(ctrl.graph.getNode(nameAndAge.name)).toBeDefined()
+        expect(ctrl.graph.getNode(nameAndAge.meta.name)).toBeDefined()
     });
 
-    Deno.test ('Ctrl object should be able to remove Action', async () => {
+    Deno.test ('01 - Ctrl object should be able to remove Action', async () => {
       await ctrl.removeAction("NameAndAge")
       expect(ctrl.actions.has("NameAndAge")).toBeFalsy()
       expect(ctrl.store.isRegistered("NameAndAge")).toBeFalsy()
@@ -79,7 +81,8 @@ Deno.test('Generator functions should return incremented numbers', () => {
     }) 
 
     @action<F>({
-        state: { name: 'Fidel', age: 85, sex: 'yoda' }
+        state: { name: 'Fidel', age: 85, sex: 'yoda' },
+        init: true
     }) 
     class NameAndAge1 extends Action<F> {
         
@@ -98,7 +101,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
   
   // console.log(`NAA constructor name: ${nameAndAge2.constructor.name}`)
 
-  Deno.test('It can set state parameters', async () => {
+  Deno.test('01 - It can set state parameters', async () => {
       try {
         let nameAndAge = await new NameAndAge1('Fido', 5).register()
       }
@@ -107,7 +110,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
       } 
   })
 
-  Deno.test('The action state parameters are not overwritten', async () => {
+  Deno.test('01 - The action state parameters are not overwritten', async () => {
     let nameAndAge = await new NameAndAge1('Fido', 5).register()
     expect(nameAndAge.state.name).toEqual('Fidel')
     expect(nameAndAge.state.age).toEqual(85)
@@ -118,7 +121,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
 // Ctrl dependency graph tests
 //
   
-    @action<A>({ ctrl: 'main', state:{name: 'A', age:38 }})
+    @action<A>({ ctrl: 'main', state:{name: 'A', age:38 }, init: true})
     class ObjA  extends Action<A> {  
       ctrl(): boolean { 
         this.publish();
@@ -127,40 +130,39 @@ Deno.test('Generator functions should return incremented numbers', () => {
     }  
     let instA = await new ObjA().register()
     
-    @action<B>({ state:{name: 'B', age:38 }})
+    @action<B>({ state:{name: 'B', age:38 }, init: true})
     class ObjB  extends ObjA {}  
     let instB = await new ObjB().register()
   
-    @action<C>({ state:{name: 'C', age:38 }})
+    @action<C>({ state:{name: 'C', age:38 }, init: true})
     class ObjC  extends ObjA {}  
     let instC = await new ObjC().register()
     
-    Deno.test('Graph dependencies should preserve order', () => {
+    Deno.test('01 - Graph dependencies should preserve order', () => {
         let dependencies = instC.setDependencies('ObjA','ObjB')
         expect(dependencies).toEqual(['ObjA', 'ObjB'])
     })
   
-    Deno.test('ctrl.getActionsToRun should return the run list', () => {
-        // instC.setDependencies('ObjA','ObjB')
+    Deno.test('01 - ctrl.getActionsToRun should return the run list for ObjC', () => {
         let dep = ctrl.getActionsToRun('ObjC')
-        // console.log( 'DEBUG 1:' + inspect(dep) )
         expect(dep.size).toEqual(3)
         let storeId = ctrl.store.getStoreId('ObjB')
         let B = dep.get('ObjB')!
         expect(B.name).toEqual('ObjB')
         expect(B.ident).toEqual( '01.02')
         expect(B.storeId).toEqual( storeId )
-        expect(B.children).toEqual([])
+        expect(B.children.length).toEqual(0)
     })
   
     @action<D>({ 
-        state:{name: 'D', age:42 }
+        state:{name: 'D', age:42 },
+        init: true
     })
     class ObjD  extends ObjA {}  
     let instD = await new ObjD().register()
   
   
-    Deno.test('ctrl.getActionsToRun should return a new changed run list', () => {
+    Deno.test('01 - ctrl.getActionsToRun should return a new changed run list', () => {
       // instC.setDependencies('ObjA','ObjB')
       instB.setDependencies('ObjD')
       let  dep = ctrl.getActionsToRun('ObjC')
@@ -193,13 +195,13 @@ type Q = {name:string, age: number}
 type R = {name:string, age: number}
 type S = {name:string, age: number}
 
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 } , init: true} ) 
 class ObjP  extends Action<P> { ctrl():boolean { this.publish(); return true } }
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, init: true } ) 
 class ObjP1 extends Action<P> { ctrl():boolean { this.publish(); return true } }
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, init: true } ) 
 class ObjP2 extends Action<P> {ctrl():boolean { this.publish(); return true } }
-@action( { state: {name: 'P', age:38 } } ) 
+@action( { state: {name: 'P', age:38 }, init: true } ) 
 class ObjP3 extends Action<P> {
   ctrl():boolean { 
     this.state.name = `P3:[]`
@@ -208,7 +210,7 @@ class ObjP3 extends Action<P> {
   } 
 }
 
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ  extends Action<Q> {
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS');
@@ -217,7 +219,7 @@ class ObjQ  extends Action<Q> {
       return true
   }
 }
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ1  extends Action<Q> { 
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS1');
@@ -227,7 +229,7 @@ class ObjQ1  extends Action<Q> {
   }
 }
 
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ2  extends Action<Q> { 
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS2');
@@ -237,7 +239,7 @@ class ObjQ2  extends Action<Q> {
   }
 }
 
-@action( { state: {name: 'Q', age:38 } } ) 
+@action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ3  extends Action<Q> { 
   ctrl():boolean {
       let stateS: Readonly<S> = ctrl.getState('ObjS3');
@@ -247,7 +249,7 @@ class ObjQ3  extends Action<Q> {
   }
 }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR  extends Action<R> { 
     ctrl():boolean {
       let stateP: Readonly<P> = ctrl.getState("ObjP");
@@ -258,7 +260,7 @@ class ObjR  extends Action<R> {
     }
   }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR1  extends Action<R> { 
   ctrl():boolean {
     let stateP: Readonly<P> = ctrl.getState("ObjP1");
@@ -269,7 +271,7 @@ class ObjR1  extends Action<R> {
   }
 }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR2  extends Action<R> { 
   ctrl():boolean {
     let stateP: Readonly<P> = ctrl.getState("ObjP2");
@@ -280,7 +282,7 @@ class ObjR2  extends Action<R> {
   }
 }
 
-@action( { state: {name: 'R', age:38 } } ) 
+@action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR3  extends Action<R> { 
   ctrl():boolean {
     // $log.debug(`Into OBJC3 ctrl()`)
@@ -292,7 +294,7 @@ class ObjR3  extends Action<R> {
   }
 }
 
-@action( { state: {name: 'S', age:38 } } ) 
+@action( { state: {name: 'S', age:38 }, init: true } ) 
   class ObjS  extends Action<S> { 
     ctrl():boolean {
       this.publish()
@@ -300,7 +302,7 @@ class ObjR3  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'S', age:38 } } ) 
+  @action( { state: {name: 'S', age:38 }, init: true } ) 
   class ObjS1  extends Action<S> { 
     ctrl():boolean {
       this.publish()
@@ -308,15 +310,15 @@ class ObjR3  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'S', age:38 } } ) 
+  @action( { state: {name: 'S', age:38 }, init: true } ) 
   class ObjS2  extends Action<S> { 
-  ctrl():boolean {
-    this.publish()
-    return true
-    }
+    ctrl():boolean {
+      this.publish()
+      return true
+      }
   }
 
-  @action( { state: {name: 'S', age:38 } } ) 
+  @action( { state: {name: 'S', age:38 }, init: true } ) 
   class ObjS3  extends Action<S> { 
     ctrl():boolean {
       this.state.name = `S3:[]`
@@ -336,7 +338,7 @@ class ObjR3  extends Action<R> {
     let deps2 = instQ3.setDependencies('ObjS3')
     let deps = instR3.setDependencies('ObjP3','ObjQ3')
     
-    Deno.test( 'Correct Dependencies before Running execution test', () => {
+    Deno.test( '01 - Correct Dependencies before Running execution test', () => {
       expect(deps2).toEqual(['ObjS3']) 
       expect(deps).toEqual(['ObjP3', 'ObjQ3'])
     })

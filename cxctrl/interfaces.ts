@@ -17,17 +17,22 @@ interface ActionIntf {
     new (name: string): ActionIntf
 }
 
-export type ActionConfigType<S> = {
+export interface ConfigMetaType {
     name?:   string
     ctrl?:   string
-    state:   S
     comp?:   string[]
-    _cnt_?:  number // internal object counter
+    init?:   boolean
 }
 
+export type ActionConfigType<S> = ConfigMetaType & { state:   S }
+
+export type MetaType = ConfigMetaType & { className?: string, funcName?: string, callCount:  number }
+
+/*
 export type cloneConfigType<S> = {
     action:  Action<S>
     name?:   string
     ctrl?:   string
     state:  S
 }
+*/

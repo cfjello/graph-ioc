@@ -1,10 +1,14 @@
-import {CxGraph} from "https://raw.githubusercontent.com/cfjello/cxgraph/master/mod.ts"
+import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
+import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
 import { CxStore }  from "../cxstore/CxStore.ts"
 import {$log, perf, $plog, ee } from "../cxutil/mod.ts"
 import { RunIntf } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "./ActionDescriptor.ts"
 import { Action } from './Action.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
+// import { action } from "./mod.ts"
+
+export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 
 export let store = new CxStore()
 
@@ -22,7 +26,8 @@ export let descriptors     = new Map<number, Map<string, ActionDescriptor>>()
 export let promises        = new Map<string, Promise<any>>()
 
 //
-// Keep track of initilizations to avoid calling twice due to the decorator running twice
+// Keep track of initilizations to avoid calling Action initialization twice due to the decorator 
+// running one for each class
 //
 export let initCounts = new Map<string,number>()
 
@@ -36,7 +41,7 @@ export let initCounts = new Map<string,number>()
  */
 export let publish = async ( action: Action<any> ): Promise<void> => { 
         // $log.debug(`PUBLISH: ${name} = ${JSON.stringify(context) }`)
-        await store.set( action.name, action.state, -1, action.currActionDesc )
+        await store.set( action.meta.name!, action.state, -1, action.currActionDesc )
         Promise.resolve(true)   
 }
 
@@ -46,7 +51,14 @@ export let publish = async ( action: Action<any> ): Promise<void> => {
  * @param name Name of the action
  * @param idx The index of the state, where the default value (-1) gives you newest state 
  */
-export let  getState = (name:string, idx: number = -1): any =>  store.get(name, idx)
+export let  getState = (name:string, idx: number = -1): any =>  {
+    try {
+        return store.get(name, idx)
+    }
+    catch (err) {
+        throw Error(`ctrl.getState("${name}", ${idx}) failed with: ${err}`)
+    }
+}
 
  /**
   *  Add an array of dependencies (containing names of actions) for a named action
@@ -56,7 +68,6 @@ export let  getState = (name:string, idx: number = -1): any =>  store.get(name, 
   */
 export let  addDependencies = ( actionName: string, dependencies: string[] ): void => {
         for ( let dependency of dependencies ) { 
-            // console.log(`${actionName} has: ${dependencies} dependencies`)
             graph.addDependency( actionName, dependency )
         } 
     }
@@ -82,20 +93,20 @@ export let addDependency = ( actionName: string, dependency: string ): void => a
 export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): Promise<void> => {
     if ( decoCallCnt === 1 ) { 
         // decorator calls multiple times, once for each class extends, but only the first is relevant
-
-        // console.log(`Trying to Add Action and graph Node: ${action.name} with decoratorCall = ${decoratorCall}`) 
-        if ( store.isRegistered( action.name )) {
-            throw Error("addAction: Action " + action.name + " is already registred in the Store  - call ctrl.removeAction to remove it first")
+        let name = action.meta.name!
+        // console.log(`Trying to Add Action and graph Node: ${name} with decoratorCall = ${decoratorCall}`) 
+        if ( store.isRegistered( name )) {
+            throw Error("addAction: Action " + name + " is already registred in the Store  - call ctrl.removeAction to remove it first")
         }
-        let actionDesc = ActionDescriptorFactory(action.name)
+        let actionDesc = ActionDescriptorFactory(name)
         try {        
             perf.mark( 'addAction', actionDesc )
 
-            await store.register(action.name, action.state, -1, actionDesc ).then(() => { 
-                actionDesc.storeId   = store.getStoreId(action.name)
+            await store.register( name, action.state, -1, actionDesc ).then(() => { 
+                actionDesc.storeId   = store.getStoreId( name)
                 action.currActionDesc = actionDesc       
-                graph.addNode(action.name)
-                actions.set(action.name, action)
+                graph.addNode( name )
+                actions.set( name, action)
             })
         }
         catch (err) {
@@ -174,7 +185,7 @@ export let isDirty = ( actionName: string ): boolean => {
  * @return A Map of Action Descriptors
  */
 export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdSeq().next().value  ): Map<string, ActionDescriptor> => {
-    p.mark('getActionsToRun', { action: rootName} )
+    p.mark('getActionsToRun') // action: rootName
     let actionsToRun = new Map<string, ActionDescriptor>()
     let inversHierarchy  = new Map<string, string>()
     let prevNodeIdent: string[] = []
@@ -184,7 +195,7 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
         //  
         let hierarchy = graph.hierarchyOf( rootName, true )
         hierarchy.forEach( (ident: string, name: string )  => {
-            let storeId  = store.getStoreId( name )
+            let storeId  = store.has(name) ? store.getStoreId( name ) : -1 
             inversHierarchy.set(ident, name)
             //
             // Match all direct children
@@ -230,7 +241,7 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
  */
 export let getPromiseChain = ( actionName: string, runAll: boolean = true ): RunIntf => {
     let jobId = jobIdSeq().next().value as number
-    p.mark("promiseChain",  { jobId: jobId, seq: 0} ) // TODO: fix to have clear start and end conditions
+    p.mark( `promiseChain_${jobId}` )
     let actionsToRun = getActionsToRun(actionName, jobId)
     //
     // baseKey is the object initiating the execution chain
@@ -254,8 +265,9 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
         // 
         let dependsOn =  new Map<string, Promise<unknown>>()
         //
-        // Prevent leaf nodes from running immediately by making them dependent on 
+        // Prevent the leaf nodes from running immediately by making them dependent on 
         // the event promise defined above
+        //
         if ( actionDesc.children.length ==  0 ) { 
                 dependsOn.set(eventName, eventTrig) 
         }
@@ -264,6 +276,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                 //
                 // Since the actionToRun list is reverse sorted
                 // the promise is assumed to be set at this point
+                //
                 try {
                     dependsOn.set(childKey, actionsToRun.get(childKey)!.promise!)
                     actionsToRun.get(childKey)!.eventName = eventName
@@ -278,30 +291,48 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
             actionsToRun.get(key)!.promise = Promise.all([ ...dependsOn.values() ] )
             .then( () => {
                 return new Promise( async (resolve) => {
-                    p.mark('P_' + key, actionDesc);  
+                    p.mark(`P_${key}_${actionDesc.jobId}`) 
                     let res = false 
                     let dirty = false
-                    let actionObj = actions.get(key) as Action<any>
-                    if ( (dirty = isDirty(key) || runAll ) ) {
-                        res = await actionObj.__exec__ctrl__function__ (actionDesc)
+                     /*
+                    * Run the actionObject if:
+                    * - If object is a runable node and not an artificial non-object added "top node" in the graph
+                    * - The object has newer/dirty child objects 
+                    * - The runAll flag is set to true
+                    * - The object callCount is 0 (firstRun) and the object.meta.init is set to false (the default)
+                    */
+                    if ( actions.has(key)  ) {
+                        let actionObj = actions.get(key) as Action<any>
+                       
+                        let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
+                        let dirty = ( isDirty(key) ||  runAll || firstRun )
+                        if ( dirty ) {
+                            res = await actionObj.__exec__ctrl__function__ (actionDesc)
+                            actionDesc.ran = true
+                            actionObj.meta.callCount += 1
+                        }
+                        actionDesc.isDirty = dirty
+                        actionDesc.success  = res || ! dirty                    
+                        actionDesc.storeId = store.getJobStoreId( key, actionDesc.jobId )
+                        actionObj.currActionDesc = actionDesc
                     }
-                    actionDesc.ran      = dirty || runAll
-                    actionDesc.success  = res || ! dirty                   
-                    actionDesc.storeId = store.getJobStoreId( key, actionDesc.jobId )
-                    actionObj.currActionDesc = actionDesc
-                    p.mark('P_' + key, actionDesc)
+                    else {
+                        actionDesc.success = true
+                        actionDesc.ran = true
+                    }
+                    p.mark(`P_${key}_${actionDesc.jobId}`, actionDesc)
                     resolve(key)
                 })
                 .catch( (e)  =>  {
-                    $log.error(e.stack)
+                    $log.error(e)
                 })
                 .finally ( () => {
-                    if ( key == baseKey ) ee.emit( `${eventName}_fin` )
+                    if ( key === baseKey ) ee.emit( `${eventName}_fin` )
                 })
             })
         }         
     })
-    p.mark("promiseChain") 
+    p.mark( `promiseChain_${jobId}` ) 
     return {
         getEventName():    string  { return eventName },
         getJobId():        number  { return jobId },
@@ -340,43 +371,46 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
     let jobId = jobIdSeq().next().value as number
     let actionsToRun = getActionsToRun(actionName, jobId) 
     
-    p.mark("runTarget", actionsToRun.get(actionName)) 
+    p.mark(`runTarget_${jobId}`) // , actionsToRun.get(actionName)
 
     let resAll = true
     if ( graph.hasNode( actionName) ) {
         let actionList = getActionsToRun(actionName)
         actionsToRun.forEach( async ( actionDesc: ActionDescriptor, name: string ) => {
-            let res = false 
-            console.log(`Running: ${name}`)
-            p.mark(`F_${actionDesc.name}`, actionDesc ) 
+            let res = false            
+            p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`) 
             let actionObj = actions.get( actionDesc.name ) as Action<any>
-            let funcName: string = actionObj.funcName
+            let funcName: string = actionObj.meta.funcName as string
+            
             try {
                 let res = false 
-                let dirty = false
-                if ( (dirty = isDirty(actionName ) || runAll ) ) {
+                let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
+                let dirty = ( isDirty(actionName) ||  runAll || firstRun )
+                if ( dirty ) {
                     res = await (actionObj as any)[funcName]()  // call it
                     actionDesc.ran     = true
+                    actionObj.meta.callCount += 1
                 }
+                actionDesc.isDirty = dirty
                 actionDesc.success = res || ! dirty
                 actionObj.currActionDesc = actionDesc
                 resAll = res ? resAll : false
             }
             catch (err) {
-                throw new Error(`ctrl.runTarget failed to run: ${actionDesc.name}`)
+                throw new Error(`ctrl.runTarget failed to run ${actionDesc.name}: ${err}`)
             }
             finally {
-                p.mark(`F_${actionDesc.name}`, actionDesc )
+                p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`, actionDesc )
             }
         })
     }
     else throw Error(`ctrl.runTarget() - unknown actionName: ${actionName}`) 
       
-    p.mark("runTarget")
+    p.mark(`runTarget_${jobId}`)
     return Promise.resolve(resAll)         
 }
 /**
- TODO: rewrite this if really needed
+ TODO: rewrite this if it is really needed
 export let runDependants = ( actionName: string ): boolean => {
         let resAll = true
         if ( graph.hasNode( actionName) ) {
