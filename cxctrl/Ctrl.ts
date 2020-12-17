@@ -6,6 +6,7 @@ import { RunIntf } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "./ActionDescriptor.ts"
 import { Action } from './Action.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
+
 // import { action } from "./mod.ts"
 
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
@@ -121,6 +122,17 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
     //    console.log(`NOT Adding Action and graph Node: ${action.name} with decoratorCall = ${decoratorCall}`) 
     // }
     return Promise.resolve()
+}
+
+
+export let releaseJob = ( jobId: number) => {
+    let idxKey: string = 'J' + jobId
+    if ( ! store.index.has( idxKey) )
+        throw Error(`ctrl.releaseJob cannot find an store index for ${idxKey}`)
+
+    store.index.get( idxKey)!.forEach( (val,key) => {
+        
+    })
 }
 
 /**
@@ -241,6 +253,8 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
  */
 export let getPromiseChain = ( actionName: string, runAll: boolean = true ): RunIntf => {
     let jobId = jobIdSeq().next().value as number
+    let jobKey: string = 'J' + jobId
+    if ( ! store.index.has( jobKey ) ) { store.index.set( jobKey , new Map<string,any>() ) }   
     p.mark( `promiseChain_${jobId}` )
     let actionsToRun = getActionsToRun(actionName, jobId)
     //
@@ -302,8 +316,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                     * - The object callCount is 0 (firstRun) and the object.meta.init is set to false (the default)
                     */
                     if ( actions.has(key)  ) {
-                        let actionObj = actions.get(key) as Action<any>
-                       
+                        let actionObj = actions.get(key) as Action<any> 
                         let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
                         let dirty = ( isDirty(key) ||  runAll || firstRun )
                         if ( dirty ) {
@@ -311,9 +324,12 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                             actionDesc.ran = true
                             actionObj.meta.callCount += 1
                         }
+                        // else {
+                        //     ctrl.store.index.get( actionDesc.jobId , new Map<string,any>() )  
+                        // }
                         actionDesc.isDirty = dirty
                         actionDesc.success  = res || ! dirty                    
-                        actionDesc.storeId = store.getJobStoreId( key, actionDesc.jobId )
+                        actionDesc.storeId = store.getIndexStoreId( key, actionDesc.jobId )
                         actionObj.currActionDesc = actionDesc
                     }
                     else {

@@ -3,3 +3,5 @@
 /cxctrl/debugging.ts
 cxstore/StoreObjBundling.TBD
 cxctrl/lodashTest.ts
+logs/ctrl.log
+logs/perf.log

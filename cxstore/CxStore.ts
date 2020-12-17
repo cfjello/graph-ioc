@@ -8,6 +8,7 @@ import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
 import { Mutex, $log, ee } from "../cxutil/mod.ts"
+import { store } from "../cxctrl/Ctrl.ts"
 
 export class CxStore {
     /**
@@ -15,7 +16,7 @@ export class CxStore {
      * TODO: for later - update the Store to support shared memory and workers
      */ 
     state           = new Map<string, Map<number, any>>()
-    index           = new Map<number, Map<string, any>>()
+    index           = new Map<string, Map<string, any>>()
     meta            = new Map<string, StateMetaData>()
     updIdx: number  = 0
     config          = new Map<string,any>()
@@ -76,33 +77,77 @@ export class CxStore {
      * @return boolean
      */
     hasStoreId (key: string, storeId:number): boolean {
-            return ( this.state.has( key ) && this.state.get(key)!.has(storeId) )
+        return ( this.state.has( key ) && this.state.get(key)!.has(storeId) )
+    }
+
+    /**
+     * Determines whether index object exists for a given jobId
+     * 
+     * @param key The name of the indexed object
+     * @param idxId  The jobId of the indexed object
+     * @return boolean
+     */
+    hasIndexId (key: string, idxId: number, prefix: string = 'J'): boolean {
+        let idxKey: string = prefix + idxId
+        return ( this.index.has(idxKey) && this.index.get(idxKey)!.has(key) )
+    }
+
+     /**
+     * Sets the index for a given index Id (defined as a number and a fixed prefix) and defaults to the previous storeId if no storeId is given
+     * (This is usefull for generation the objects index for a given e.g. jobId when the key is not dirty)
+     * 
+     * @param key The name of the indexed object
+     * @param jobId  The jobId of the indexed object
+     * @return boolean
+     */
+
+    setIndexId (key: string, idxId:number, prefix: string = 'J', storeId: number = -1 ): void {
+        let idxKey: string = prefix + idxId
+        if ( ! this.index.has( idxKey) ) {
+            throw Error( `Missing jobId: ${idxKey} in store index`)
         }
+        else {
+            if ( this.hasStoreId( idxKey , storeId ) ) 
+                this.index.get(idxKey)!.set(key, storeId )
+            else 
+                throw Error( `No storeId for ${key} with storeId ${storeId} in store`)
+        }       
+    }
+
+    getIndexStoreId( key: string, idxId:number, prefix: string = 'J' ) : number {
+        let idxKey: string = prefix + idxId
+        return this.hasIndexId( key, idxId ) ? this.index.get(idxKey)!.get(key) : this.getStoreId(key)
+    }
+
+    getIndexCollection( idxId:number, prefix: string = 'J' ) : any {
+        let idxKey: string = prefix + idxId
+        let collection = new Map<string, any>()
+        try {
+            this.index.get(idxKey)!.forEach( ( storeId, key ) => {
+                collection.set( key, this.get(key, storeId) )
+            })
+            return collection
+        }
+        catch(err) {
+            throw err
+        }
+    }
 
     /**
      * Determines whether index object exists for a given jobId
      * 
      * @param key The name of the indexed object
-     * @param jobId  The jobId of the indexed object
+     * @param idxId  The jobId of the indexed object
      * @return boolean
      */
-    hasIndexId (key: string, jobId:number ): boolean {
-        return ( this.index.has(jobId) && this.index.get(jobId)!.has(key) )
-    }
-
-    getJobStoreId( key: string, jobId:number ) : number {
-        return this.hasIndexId( key, jobId ) ? this.index.get(jobId)!.get(key) : this.getStoreId(key)
-    }
-
-    /**
-     * Determines whether index object exists for a given jobId
-     * 
-     * @param key The name of the indexed object
-     * @param jobId  The jobId of the indexed object
-     * @return boolean
-     */
-    getChildState<S>(key: string, jobId:number ): S | undefined {
-        return this.hasIndexId(key, jobId) ? this.index.get(jobId)!.get(key): undefined
+    getIndexState<S>(key: string, idxId: number, prefix: string = 'J' ): S | undefined {
+        let idxKey: string = prefix + idxId
+        if ( this.hasIndexId(key, idxId) ) {
+            let storeId = this.index.get(idxKey)!.get(key)
+            return this.get(key, storeId )
+        }
+        else
+            return undefined
     }
 
     /**
@@ -138,20 +183,8 @@ export class CxStore {
      */
     get<T>( key: string, _storeId:number = -1, getRefOnly: boolean = false ):  T & StateKeys {
             let storeId = this.getStoreId( key, _storeId )
-            // if ( getRefOnly )
             return this.state.get(key)!.get(storeId) as  T & StateKeys
-            // else 
-            //    return cloneDeep( this.state.get(key)!.get(storeId) ) as T & StateKeys
         }
-
-    /**
-     * Get reference to a store object (use with care )
-     * 
-     * @param key The name of the store object 
-     * @returns A reference to the stored object
-
-     NOT needed seince we do freeze --> getRef<T>( key: string, _idx: number = -1 ): T & StateKeys{ return this.get( key, _idx, true) as  T & StateKeys }
-    */
 
     /**
      * Saves a deep copy of an object to the Store
@@ -169,6 +202,7 @@ export class CxStore {
             // If the ActionDescriptor is not initialized ( that is if this was called directly ) then initialize
             // 
             let actionDesc: ActionDescriptor = _actionDesc === undefined ? ActionDescriptorFactory(key): _actionDesc
+            let jobKey: string = 'J' + actionDesc.jobId
 
             //
             // Do we have a new key? If so we create the meta info
@@ -180,7 +214,7 @@ export class CxStore {
                 this.state.set( key, new Map<number,any>() ) 
             }
 
-            if ( ! this.index.has( actionDesc.jobId ) ) { this.index.set( actionDesc.jobId , new Map<string,any>() ) }   
+            if ( ! this.index.has( jobKey ) ) { this.index.set( jobKey , new Map<string,any>() ) }   
             //
             // Now prepare to insert the object
             // 
@@ -212,7 +246,7 @@ export class CxStore {
                     //
                     // store the job-index reference
                     //
-                    this.index.get(actionDesc.jobId)!.set(key, objClone ) 
+                    this.index.get(jobKey)!.set(key, newMetaInfo.storeId ) 
                     //
                     // set the updated metaData
                     //
@@ -220,11 +254,13 @@ export class CxStore {
                     //
                     // Delete expired records, if we have a thresshold
                     // TODO: change this to consider jobId to insure a consident view over multiple objects
-                    // 
+                    //
+                    /* 
                     if ( metaInfo.threshold > 1 && this.state.get(key)!.size > metaInfo.threshold ) {
                         let firstKey  = this.state.get(key)!.keys().next().value
                         this.state.get(key)!.delete(firstKey)
                     }
+                    */
                 }
                 catch(err) {
                     //

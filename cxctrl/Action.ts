@@ -59,7 +59,7 @@ export abstract class Action<S> {
      * @returns A copy of the state 
      */
     getChildState = (storeName: string ): S & StateKeys | undefined  => {
-        return ctrl.store.getChildState(storeName, this.state.jobId ) as S & StateKeys
+        return ctrl.store.getIndexState(storeName, this.state.jobId ) as S & StateKeys
     }
 
     /**

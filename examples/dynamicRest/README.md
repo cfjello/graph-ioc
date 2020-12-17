@@ -47,5 +47,5 @@ You can now query the REST api in a web browser, i.e.:
 http://localhost:9999/Employees
 http://localhost:9999/Offices
 
-etc...
+etc ...
 ```
