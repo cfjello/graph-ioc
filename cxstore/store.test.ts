@@ -132,6 +132,9 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
     })
     */
 
+    /* Dropped, since remove of records are now on jobId level 
+    * in order to ensure they dependant store object are keep and deleted together
+    *
     Deno.test({
         name: 'Store: It should delete collection entries according to treshold', 
         fn: async () => {
@@ -146,26 +149,12 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
             let storeId_2 = await store.set("NameAndAge2", nameAndAge2.state, -1 , undefined)
             // let storeId_2 = store.getStoreId("NameAndAge2")
             expect(storeId_2).toEqual(storeId_1 + 1)
-            /*
-            // Now update
-            nameAndAge2.state.name = "Sunny"
-            nameAndAge2.state.age  = 24
-            store.set("NameAndAge2", nameAndAge2.state)
-            expect(store.getStoreId('NameAndAge2')).toEqual(storeId_1)
-            expect(store.getStoreId('NameAndAge2', storeId_1)).toEqual(-1)
-            // Now update
-            nameAndAge2.state.name = "Macarony"
-            nameAndAge2.state.age  = 312
-            let storeId_4 =  store.set("NameAndAge2", nameAndAge2.state)
-            expect(store.getStoreId('NameAndAge2', storeId_4)).toEqual(storeId_4)
-            expect(store.getStoreId('NameAndAge2', storeId_3)).toEqual(storeId_3)
-            expect(store.getStoreId('NameAndAge2', storeId_2)).toEqual(-1)
-            */
         },
         sanitizeResources: false,
         sanitizeOps: false
     })
-
+    */ 
+   
     Deno.test( {
         name: 'Store: It can do error handling', 
         fn: async () => {
@@ -177,7 +166,8 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
                 store.getStoreId('Non_Existing_NameAndAge', storeId) 
             }
             catch(e) { 
-                expect(e.stack).toMatch(/does not exist/m) 
+                console.log( JSON.stringify(e))
+                expect(e.message).toMatch(/Key: Non_Existing_NameAndAge does not exist/m) 
             }
         },
         sanitizeResources: false,

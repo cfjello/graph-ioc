@@ -6,7 +6,7 @@ import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
 // import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
 // import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
-import { Mutex, ee }    from "../cxutil/mod.ts"
+import { Mutex, ee, CxError }    from "../cxutil/mod.ts"
 import { ActionDescriptor } from "./ActionDescriptor.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 
@@ -98,19 +98,18 @@ export abstract class Action<S> {
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
         let self = this
         let lock = `${actionDesc.name}_run`
-        let res = false
         
         // The same async object should always execute sequencially 
         Mutex.doAtomic( lock , async () => {
             try {
                 self.currActionDesc = actionDesc
-                res = await (this as any)[self.meta.funcName!]()
+                await (this as any)[self.meta.funcName!]()
             }
             catch(err) {
-                throw new Error(`Action.__exec__ctrl__function__  failed to call ${self.meta.className}.${self.meta.funcName} due to ${err}`)
+                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0001', `Failed to call ${self.meta.className}.${self.meta.funcName}`, err)
             }
         })
-        return Promise.resolve(res as boolean)
+        return Promise.resolve(true)
     }
     
     /**

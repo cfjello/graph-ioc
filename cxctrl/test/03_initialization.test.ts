@@ -30,10 +30,13 @@ type F = {name?:string, age?: number, sex?: string}
       getAge     = () => { return this.state.age }
   }
  
-  let nameAndAge = await new NameAndAge().register()
+  let nameAndAge: NameAndAge = await new NameAndAge().register()
   // console.log(`NAA constructor name: ${nameAndAge2.constructor.name}`)
-/*
-  Deno.test('04 - Action Object should register under the default name', () => {
-      expect(ctrl.store.isRegistered(nameAndAge.name)).toEqual("NameAndAge")
+
+  Deno.test('03 - Action Object should register under the default name', () => {
+    // console.log(`nameAndAge.meta.className!: ${nameAndAge.meta.className!}`)
+    expect(nameAndAge.meta.className!).toEqual("NameAndAge")
+    expect(ctrl.store.isRegistered(nameAndAge.meta.className!)).toBeTruthy()
+      
 })
-*/
+

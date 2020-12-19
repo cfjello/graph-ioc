@@ -1,4 +1,4 @@
-import { perf }    from './mod.ts'
+import { perf }    from '../mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 import { delay }   from "https://deno.land/std/async/delay.ts"
 

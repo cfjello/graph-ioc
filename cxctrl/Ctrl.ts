@@ -1,7 +1,7 @@
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
 import { CxStore }  from "../cxstore/CxStore.ts"
-import {$log, perf, $plog, ee } from "../cxutil/mod.ts"
+import {$log, perf, $plog, ee, CxError } from "../cxutil/mod.ts"
 import { RunIntf } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "./ActionDescriptor.ts"
 import { Action } from './Action.ts'
@@ -9,17 +9,18 @@ import { jobIdSeq, taskIdSeq } from "./generators.ts"
 
 // import { action } from "./mod.ts"
 
+const __filename = new URL('', import.meta.url).pathname
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 
 export let store = new CxStore()
 
 //
-// Simple Performance logger instance
+// Performance logger instance
 //
 export let p = perf
 
 //
-// internal ctrl meta data
+// Internal ctrl meta data
 //
 export let graph: CxGraph  = new CxGraph()
 export let actions         = new Map<string, Action<any>>() 
@@ -41,9 +42,8 @@ export let initCounts = new Map<string,number>()
  * @param action The action instance that want to publish
  */
 export let publish = async ( action: Action<any> ): Promise<void> => { 
-        // $log.debug(`PUBLISH: ${name} = ${JSON.stringify(context) }`)
         await store.set( action.meta.name!, action.state, -1, action.currActionDesc )
-        Promise.resolve(true)   
+        Promise.resolve()   
 }
 
 /**
@@ -57,7 +57,7 @@ export let  getState = (name:string, idx: number = -1): any =>  {
         return store.get(name, idx)
     }
     catch (err) {
-        throw Error(`ctrl.getState("${name}", ${idx}) failed with: ${err}`)
+        throw new CxError(__filename, 'getState()', 'CTRL-0001',`ctrl.getState("${name}", ${idx}) failed with: ${err}`, err)
     }
 }
 
@@ -97,7 +97,7 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
         let name = action.meta.name!
         // console.log(`Trying to Add Action and graph Node: ${name} with decoratorCall = ${decoratorCall}`) 
         if ( store.isRegistered( name )) {
-            throw Error("addAction: Action " + name + " is already registred in the Store  - call ctrl.removeAction to remove it first")
+            throw new CxError(__filename, 'addAction()', 'CTRL-0002',`Action ${name} is already registred in the Store  - call ctrl.removeAction to remove it first`)
         }
         let actionDesc = ActionDescriptorFactory(name)
         try {        
@@ -111,7 +111,7 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
             })
         }
         catch (err) {
-            throw Error(`addAction: ${err}`)
+            throw new CxError(__filename, 'addAction()', 'CTRL-0003', `Cannot register ${name}`, err)
         }
         finally {
             perf.mark( 'addAction', actionDesc )
@@ -128,10 +128,10 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
 export let releaseJob = ( jobId: number) => {
     let idxKey: string = 'J' + jobId
     if ( ! store.index.has( idxKey) )
-        throw Error(`ctrl.releaseJob cannot find an store index for ${idxKey}`)
+        throw new CxError(__filename, 'ctrl.releaseJob ()', 'CTRL-0004',`Cannot find an store index for ${idxKey}`)
 
     store.index.get( idxKey)!.forEach( (val,key) => {
-        
+        // TODO: implement this
     })
 }
 
@@ -186,6 +186,7 @@ export let isDirty = ( actionName: string ): boolean => {
     children.forEach( (childKey: string) => { 
         let childStoreId = store.getStoreId(childKey)
         isDirty = ( isDirty || storeId <  childStoreId ) 
+        if ( isDirty ) return
     })
     return isDirty
 }
@@ -295,7 +296,9 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                     dependsOn.set(childKey, actionsToRun.get(childKey)!.promise!)
                     actionsToRun.get(childKey)!.eventName = eventName
                 }
-                catch( err ) { throw new Error( `getPromiseChain: childKey ${childKey}.promise is undefined` ) }       
+                catch( err ) { 
+                    throw new CxError(__filename, 'getPromiseChain()', 'CTRL-0005', `ChildKey ${childKey}.promise is undefined`)
+                }       
             })
         }
         //
@@ -315,7 +318,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                     * - The runAll flag is set to true
                     * - The object callCount is 0 (firstRun) and the object.meta.init is set to false (the default)
                     */
-                    if ( actions.has(key)  ) {
+                    if ( actions.has(key) ) {
                         let actionObj = actions.get(key) as Action<any> 
                         let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
                         let dirty = ( isDirty(key) ||  runAll || firstRun )
@@ -329,7 +332,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                         // }
                         actionDesc.isDirty = dirty
                         actionDesc.success  = res || ! dirty                    
-                        actionDesc.storeId = store.getIndexStoreId( key, actionDesc.jobId )
+                        actionDesc.storeId = store.getStoreId( key, -1 )
                         actionObj.currActionDesc = actionDesc
                     }
                     else {
@@ -392,8 +395,7 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
     let resAll = true
     if ( graph.hasNode( actionName) ) {
         let actionList = getActionsToRun(actionName)
-        actionsToRun.forEach( async ( actionDesc: ActionDescriptor, name: string ) => {
-            let res = false            
+        actionsToRun.forEach( async ( actionDesc: ActionDescriptor, name: string ) => {          
             p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`) 
             let actionObj = actions.get( actionDesc.name ) as Action<any>
             let funcName: string = actionObj.meta.funcName as string
@@ -403,7 +405,8 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
                 let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
                 let dirty = ( isDirty(actionName) ||  runAll || firstRun )
                 if ( dirty ) {
-                    res = await (actionObj as any)[funcName]()  // call it
+                    await (actionObj as any)[funcName]()  // call it
+                    res = true
                     actionDesc.ran     = true
                     actionObj.meta.callCount += 1
                 }
@@ -413,14 +416,14 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
                 resAll = res ? resAll : false
             }
             catch (err) {
-                throw new Error(`ctrl.runTarget failed to run ${actionDesc.name}: ${err}`)
+                throw new CxError(__filename, 'runTarget()', 'CTRL-0006', `Failed to run ${actionDesc.name}: ${err}`, err)
             }
             finally {
                 p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`, actionDesc )
             }
         })
     }
-    else throw Error(`ctrl.runTarget() - unknown actionName: ${actionName}`) 
+    else throw new CxError(__filename, 'runTarget()', 'CTRL-0007', `Unknown actionName: ${actionName}`)
       
     p.mark(`runTarget_${jobId}`)
     return Promise.resolve(resAll)         

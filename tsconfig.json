@@ -4,6 +4,5 @@
 		"alwaysStrict": false,
 		"noImplicitUseStrict": true,
 		"noImplicitAny": true,
-		"isolatedModules": false
 	}
 }

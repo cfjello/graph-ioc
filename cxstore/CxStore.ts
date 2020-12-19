@@ -7,8 +7,10 @@ import clone        from "https://raw.githubusercontent.com/lodash/lodash/master
 import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master/isObject.js"
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
-import { Mutex, $log, ee } from "../cxutil/mod.ts"
+import { Mutex, $log, ee, CxError } from "../cxutil/mod.ts"
 import { store } from "../cxctrl/Ctrl.ts"
+
+const __filename = new URL('', import.meta.url).pathname;
 
 export class CxStore {
     /**
@@ -43,7 +45,7 @@ export class CxStore {
     setThreshold( key: string, _threshold: number ) : number {
         let threshold = _threshold < 2 ? -1 : _threshold
         if ( ! this.meta.has(key) ) 
-            throw Error(`setThreshold() cannot find meta data on the store object named: ${key}`)
+            throw new CxError(__filename, 'setThreshold()', 'STORE-0001', `Cannot find meta data on the store object named: ${key}`)
 
         this.meta.get(key)!.threshold = threshold
         return threshold
@@ -57,7 +59,8 @@ export class CxStore {
                     this.meta.delete(key)
                 }) 
         }
-        else throw Error(`unregister() cannot find a store object named: ${key}`)
+        else 
+            throw new CxError(__filename, 'unregister()', 'STORE-0002', `Cannot find a store object named: ${key}`)
 
         return Promise.resolve(true)
     }
@@ -97,29 +100,49 @@ export class CxStore {
      * (This is usefull for generation the objects index for a given e.g. jobId when the key is not dirty)
      * 
      * @param key The name of the indexed object
-     * @param jobId  The jobId of the indexed object
-     * @return boolean
+     * @param idxId  The idxId of the indexed object
+     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @return void
      */
-
     setIndexId (key: string, idxId:number, prefix: string = 'J', storeId: number = -1 ): void {
         let idxKey: string = prefix + idxId
         if ( ! this.index.has( idxKey) ) {
-            throw Error( `Missing jobId: ${idxKey} in store index`)
+            throw new CxError(__filename, 'setIndexId()', 'STORE-0003', `Missing jobId: ${idxKey} in store index`)
         }
         else {
             if ( this.hasStoreId( idxKey , storeId ) ) 
                 this.index.get(idxKey)!.set(key, storeId )
             else 
-                throw Error( `No storeId for ${key} with storeId ${storeId} in store`)
+                throw new CxError(__filename, 'setIndexId()', 'STORE-0004', `No storeId for ${key} with storeId ${storeId} in store`)
         }       
     }
 
+     /**
+     * Gets the storeId for a given key, idxId and prefix 
+     * 
+     * @param key The name of the indexed object
+     * @param idxId  The idxId of the indexed object
+     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @return void
+     */
     getIndexStoreId( key: string, idxId:number, prefix: string = 'J' ) : number {
         let idxKey: string = prefix + idxId
-        return this.hasIndexId( key, idxId ) ? this.index.get(idxKey)!.get(key) : this.getStoreId(key)
+        if ( ! this.hasIndexId( key, idxId, prefix ) )
+            throw new CxError(__filename, 'getIndexStoreId()', 'STORE-0005', `Cannot find index entry for ${idxKey}[${key}]`)
+        else
+            return this.index.get(idxKey)!.get(key)
     }
 
-    getIndexCollection( idxId:number, prefix: string = 'J' ) : any {
+     /**
+     * Gets a collection of object-states for a given key, idxId and prefix - this i.e. can be used 
+     * to fetch references to all objects related to a given jobId. Object-states in the collection cannot be updated
+     * 
+     * @param key The name of the indexed object
+     * @param idxId  The idxId of the indexed object
+     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @return Map<string, any> A map of named objects and their data
+     */
+    getIndexCollection( idxId:number, prefix: string = 'J' ) : Map<string, any> {
         let idxKey: string = prefix + idxId
         let collection = new Map<string, any>()
         try {
@@ -129,22 +152,23 @@ export class CxStore {
             return collection
         }
         catch(err) {
-            throw err
+            throw new CxError(__filename, 'getIndexCollection()', 'STORE-0006', `Cannot fetch Collection`, err)
         }
     }
 
     /**
-     * Determines whether index object exists for a given jobId
+     * Gets the object-state for a named indexed object of type S
      * 
      * @param key The name of the indexed object
      * @param idxId  The jobId of the indexed object
-     * @return boolean
+     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @return S | undefined if the indexed object does not exist
      */
     getIndexState<S>(key: string, idxId: number, prefix: string = 'J' ): S | undefined {
         let idxKey: string = prefix + idxId
         if ( this.hasIndexId(key, idxId) ) {
             let storeId = this.index.get(idxKey)!.get(key)
-            return this.get(key, storeId )
+            return this.get(key, storeId ) as S
         }
         else
             return undefined
@@ -169,7 +193,8 @@ export class CxStore {
                         idx = -1
                 }
             }
-            else throw new Error (`store.getStoreId(): ${key} does not exist`)
+            else 
+                throw new CxError(__filename, 'store.getStoreId()', 'STORE-0007', `Key: ${key} does not exist`)
             return idx
         }
 
@@ -196,8 +221,9 @@ export class CxStore {
      */
     async set<S>( key: string, objRef: S & StateKeys, threshold: number = -1, _actionDesc: ActionDescriptor | undefined  ): Promise<number>  {
 
-            if (  isUndefined( key) ) throw new Error ( "Store.set() must be passed a valid Object key-name to store")     
-            if ( !isObject( objRef) ) throw new Error ( "Store.set() must be passed an Object to store")
+            if (  isUndefined( key) ) throw new CxError(__filename, 'store.set()', 'STORE-0008', `Invalid key: ${key}`)   
+            if ( !isObject( objRef) ) throw new CxError(__filename, 'store.set()', 'STORE-0009', `Object must be passed to the store`)
+
             //
             // If the ActionDescriptor is not initialized ( that is if this was called directly ) then initialize
             // 
@@ -251,16 +277,6 @@ export class CxStore {
                     // set the updated metaData
                     //
                     this.meta.set( key, newMetaInfo )
-                    //
-                    // Delete expired records, if we have a thresshold
-                    // TODO: change this to consider jobId to insure a consident view over multiple objects
-                    //
-                    /* 
-                    if ( metaInfo.threshold > 1 && this.state.get(key)!.size > metaInfo.threshold ) {
-                        let firstKey  = this.state.get(key)!.keys().next().value
-                        this.state.get(key)!.delete(firstKey)
-                    }
-                    */
                 }
                 catch(err) {
                     //
@@ -268,7 +284,7 @@ export class CxStore {
                     //
                     objRef.jobId   = newMetaInfo.prevJobId
                     objRef.taskId  = newMetaInfo.prevTaskId
-                    throw new Error ( `Store.set() failed to store data for ${key}`) 
+                    throw new CxError(__filename, 'store.set()', 'STORE-0010', `failed to store data for ${key}`, err)
                 }
             }) 
             return Promise.resolve(newMetaInfo.storeId)

@@ -151,13 +151,7 @@ class ObjR3  extends Action<R> {
       }
   }
 
-
-  // ctrl.removeAction("ObjR3")
-  // ctrl.removeAction("ObjP3")
-  // ctrl.removeAction("ObjQ3")
-  // ctrl.removeAction("ObjS3")
-
-  // describe('03 - Ctrl can run an Action.ctrl() function as a promise',  () => {
+  // describe('02 - Ctrl can run an Action.ctrl() function as a promise',  () => {
     let instR3 = await new ObjR3().register()
     let instP3 = await new ObjP3().register()
     let instQ3 = await new ObjQ3().register()
@@ -166,28 +160,12 @@ class ObjR3  extends Action<R> {
     let deps2 = instQ3.setDependencies('ObjS3')
     let deps = instR3.setDependencies('ObjP3','ObjQ3')
     
-    Deno.test( '03 - Correct Dependencies before Running execution test', () => {
+    Deno.test( '02 - Correct Dependencies before Running execution test', () => {
       expect(deps2).toEqual(['ObjS3']) 
       expect(deps).toEqual(['ObjP3', 'ObjQ3'])
     })
-    
-    /*
-    test('It should RUN a ctrl()', () => {
-      expect(Ctrl.runTarget('ObjD3')).toBeTruthy()
-      expect(instD3.state.name).toEqual('D3:[]')
-      expect(Ctrl.runTarget('ObjA3')).toBeTruthy()
-      expect(instA3.state.name).toEqual('A3:[]')
-    })
- 
-  
-    test('It should RUN Dependencies', () => {
-      expect(Ctrl.runTarget('ObjB3')).toBeTruthy()
-      expect(instQ3.state.name).toEqual('Q3:[S3:[]]')
-    })
-  */ 
- 
 
-    Deno.test('03 - It should RUN the Dependency Promises in order',  async () => {       
+    Deno.test('02 - It should RUN the Dependency Promises in order',  async () => {       
         let nameR3 = ObjR3.name
         let actionsToRun = ctrl.getActionsToRun('ObjR3')
         expect(actionsToRun.size).toEqual(4)
@@ -197,9 +175,10 @@ class ObjR3  extends Action<R> {
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
     })
 
-    Deno.test ('03 - It should NOT RUN again with no dirty dependencies',  async () => { 
+
+    Deno.test ('02 - It should NOT RUN again with no dirty dependencies',  async () => { 
         let nameR3 = ObjR3.name
-        let actionsToRun = ctrl.getActionsToRun('ObjR3')
+        // let actionsToRun = ctrl.getActionsToRun('ObjR3')
         let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
         expect(ObjR3.name).toEqual(nameR3)
         await promiseChain.run()
@@ -207,23 +186,23 @@ class ObjR3  extends Action<R> {
         expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
     })
 
-    /*
-    Deno.test('It should only run dirty Dependency targets',  async () => { 
-      instS3.state.age = 198
-      instS3.publish()
-      await ctrl.runTarget('ObjQ3') // This will now be dirty
-      let nameR3 = ObjR3.name
-      await ctrl.runTarget('ObjP3')
-
-       // expect(ObjP3.currActionDesc.ran).toBeFalsy()
-       // if (task.name == "ObjS3") expect(task.ran).toBeFalsy()
-       // if (task.name == "ObjQ3") expect(task.ran).toBeTruthy()
-       // if (task.name == "ObjR3") expect(task.ran).toBeTruthy()
+/* TODO: Fix runTarget */
+    Deno.test('02 - runTarget() should only run dirty Dependency targets',  async () => { 
+      instQ3.state.age = 198
+      await instQ3.publish()  // This will now be dirty
+      //
+      // instQ3 and instP3 should not run
+      // but instR3 should run
+      //
+      let runCount = instR3.meta.callCount
+      await ctrl.runTarget('ObjR3')
+      let runCount2 = instR3.meta.callCount
+      expect(instR3.currActionDesc.ran).toBeTruthy()
+      expect( runCount2 ).toEqual(runCount + 1)
   })
-  */
 
 
-    Deno.test('03 - It should only run dirty Dependency Promises',  async () => { 
+    Deno.test('02 - It should only run dirty Dependency Promises',  async () => { 
         instS3.state.age = 199
         instS3.publish()
         await ctrl.runTarget('ObjQ3') // This will now be dirty
@@ -234,11 +213,6 @@ class ObjR3  extends Action<R> {
         let jobName = runChain.getEventName()
         let tasks: Map<string, ActionDescriptor>   = runChain.getActionsToRun()!
 
-        /*
-        tasks.forEach((val: ActionDescriptor ,idx) => {
-          console.log(val.taskId,val.name, val.ran)
-        })
-        */ 
        tasks.forEach((task: ActionDescriptor ,idx) => {
          if (task.name == "ObjP3") expect(task.ran).toBeFalsy()
          if (task.name == "ObjS3") expect(task.ran).toBeFalsy()
@@ -257,7 +231,7 @@ class ObjR3  extends Action<R> {
         }
     }
 
-    Deno.test('03 - It can remove a registration',  async () => { 
+    Deno.test('02 - It can remove a registration',  async () => { 
       let instR4 = await new ObjS4().register()
       expect( ctrl.actions.has('ObjS4') ).toBeTruthy()
       await ctrl.removeAction("ObjS4")

@@ -2,6 +2,7 @@ import { $plog } from './CxLog.ts'
 import  merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 import  ShortUniqueId  from 'https://cdn.jsdelivr.net/npm/short-unique-id@latest/short_uuid/mod.ts';
 import { ActionDescriptor} from "../cxctrl/ActionDescriptor.ts"
+import { CxError } from "./mod.ts"
 
 export type  PerfMeasureType = { 
     type: string,
@@ -77,7 +78,7 @@ class Perf<P> {
                 // this.perf.delete(token)
             }
             else {
-                throw new Error(`CxPerf.mark() - token ${token} does not exist`)
+                throw new CxError('Cxperf.ts', 'mark()', 'PERF-0001', `Performance token ${token} does not exist`)
             }
         }
     }
@@ -92,7 +93,7 @@ class Perf<P> {
             return this.perf.get(token)!
         }
         catch (err) {
-            throw err
+            throw new CxError('Cxperf.ts', 'get()', 'PERF-0001', `Performance token ${token} does not exist`, err)
         }
         
     }

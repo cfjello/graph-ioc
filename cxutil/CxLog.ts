@@ -23,19 +23,8 @@ let mac = (await getMac() as string).replace(/:/g,'')
         // you can change format of output message using any keys in `LogRecord`
         // formatter: "{levelName} {msg}",
 
-// let logFmt = "[{levelName}] § {datetime} § {msg}"
 
-let logFormat =  (logRecord: LogRecord)  => {
-  let dateEntry = logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
-  let logEntry: ErrLogType = { 
-    level: logRecord.levelName,
-    mac: mac, 
-    date: dateEntry, 
-    msg: logRecord.msg, 
-    args: logRecord.args 
-  }
-  return `${JSON.stringify(logEntry)}`
-}
+
 
 await log.setup({
     handlers: {
@@ -43,22 +32,22 @@ await log.setup({
       ctrlFile: new log.handlers.FileHandler("DEBUG", {
         filename: path.resolve(`${$logDir}/ctrl.log`),
         mode: 'a',
-        formatter: (logRecord: LogRecord)  => {
+        formatter: (logRecord) => {
           let dateEntry = logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
-          let logEntry: ErrLogType = { 
+          let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": "${logRecord.msg}" }`
+          let msg = JSON.parse( msgJSON )
+          let logEntry = merge ( { 
             level: logRecord.levelName,
             mac: mac, 
             date: dateEntry, 
-            msg: logRecord.msg, 
-            args: logRecord.args 
-          }
-          return `${JSON.stringify(logEntry)}`
+          }, msg )       
+          return `${JSON.stringify(logEntry)!}` as string
         }
       }),
       perfFile: new log.handlers.FileHandler("INFO", {
         filename: path.resolve(`${$logDir}/perf.log`),
-        mode: 'a',
-        formatter: (perfRecord )  => {
+        mode: 'w',
+        formatter: (perfRecord)  => {
           let dateEntry = perfRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
           let msg = JSON.parse(perfRecord.msg)
           let logEntry  = merge ( { 
