@@ -1,6 +1,6 @@
 import {ctrl, Action, action} from "../../../cxctrl/mod.ts"
 import { expect }  from "https://deno.land/x/expect/mod.ts"
-import { startServer } from "../../../cxrest/server.ts"
+import { startServer } from "../../cxrest/server.ts"
         
 import { ProductsType, Products } from './Products.model.ts'
 import { ProductlinesType, Productlines } from './Productlines.model.ts'

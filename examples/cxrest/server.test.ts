@@ -1,4 +1,4 @@
-import {ctrl, Action, action } from '../cxctrl/mod.ts'
+import {ctrl, Action, action } from '../../cxctrl/mod.ts'
 import { startServer } from './server.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 

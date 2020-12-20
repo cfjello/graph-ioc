@@ -1,5 +1,5 @@
 import { StateDataIntf, publishIntf } from "./interfaces.ts"
-import { ctrl } from "../cxctrl/mod.ts"
+import { ctrl } from "../../cxctrl/mod.ts"
 
 const getStateData = (  stateName: string, id: string ): StateDataIntf  => {
     let msg = ""

@@ -166,7 +166,7 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
                 store.getStoreId('Non_Existing_NameAndAge', storeId) 
             }
             catch(e) { 
-                console.log( JSON.stringify(e))
+                // console.log( JSON.stringify(e))
                 expect(e.message).toMatch(/Key: Non_Existing_NameAndAge does not exist/m) 
             }
         },

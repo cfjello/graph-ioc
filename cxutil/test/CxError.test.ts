@@ -60,17 +60,3 @@ Deno.test( {
     sanitizeResources: false,
     sanitizeOps: false
 })
-
-/* TODO: fix this test
-Deno.test( { 
-    name: 'The CxError has been logged', 
-    fn: async () => {
-        let logFile = path.resolve(`${$logDir}/ctrl.log`)
-        let content = Deno.readTextFileSync( logFile )
-        let regex = new RegExp(/"msgStack":\["Base JS Error","fn() first","fn() second","fn() third"\]/,'mg')
-        expect(content).toMatch(regex)
-    },
-    sanitizeResources: false,
-    sanitizeOps: false
-})
-*/

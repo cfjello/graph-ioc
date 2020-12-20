@@ -243,7 +243,7 @@ import { ee } from "../../../cxutil/mod.ts"
         // 
         a.push(`import {ctrl, Action, action} from "../../../cxctrl/mod.ts"
 import { expect }  from "https://deno.land/x/expect/mod.ts"
-import { startServer } from "../../../cxrest/server.ts"
+import { startServer } from "../../cxrest/server.ts"
         `)
         //
         // Add the imports
@@ -295,48 +295,6 @@ Deno.test ({
 
 startServer()
 `)
-
-/*
-        //
-        //  Get all dependencies
-        // 
-        let allDeps: Map<string, string[]> = new Map<string, string[]>()
-        graph.overallOrder().forEach( (node: string) => {
-            let deps: string[] = graph.getOutgoingEdges(node)
-            if ( ! allDeps.get(node) ) allDeps.set(node, [])
-            if (deps.length > 0 ) allDeps.get(node)!.push(...deps)
-        })
-
-        allDeps.forEach( ( deps: string[] , key: string) => {
-            let nodeInst = this.initLow( key ) + "Inst"
-            let depsStr = uniq(deps).map( dep => `'${dep}'` ).join(',')
-            if( depsStr.length > 0 ) a.push(`${nodeInst}.setDependencies(${depsStr})`)
-        })
- 
-        graph.overallOrder().forEach( (node: string) => {
-            let deps: string[] = graph.getIncomingEdges(node)
-            if ( deps.length === 0 ) {
-a.push(`//
-// Run promiseChain for ${node}
-//`)
-                a.push( `let chain${node} = ctrl.getPromiseChain('${node}')`)
-                a.push( `chain${node}.run()`)
-            }
-        })
-        */
-       /*
-        a.push(`
-ctrl.graph.overallOrder().forEach( (nodeName: string) => {
-    console.log('Node:' +  nodeName)
-    if ( nodeName !== 'T' ) {
-        let l: number = (ctrl.store.get(nodeName) as any).length
-        console.log('Check One -> ' + nodeName + ':' + l )
-        let s = ctrl.store.get(nodeName)  as Array<any>
-        console.log('Check Two -> ' + nodeName + ':' + s.length)
-    }
-})
-`)
-*/
         this.state.models.set(name, a )
     }
 

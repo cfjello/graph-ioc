@@ -1,4 +1,4 @@
-import { StoreIntf, StateMetaData } from "./interfaces.ts"
+import { StateMetaData } from "./interfaces.ts"
 import { ActionDescriptor, ActionDescriptorFactory } from "../cxctrl/ActionDescriptor.ts"
 import { StateKeys } from "../cxctrl/interfaces.ts"
 import { storeIdSeq } from "./generators.ts"
