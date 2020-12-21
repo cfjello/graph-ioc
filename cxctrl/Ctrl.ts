@@ -95,7 +95,6 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
     if ( decoCallCnt === 1 ) { 
         // decorator calls multiple times, once for each class extends, but only the first is relevant
         let name = action.meta.name!
-        // console.log(`Trying to Add Action and graph Node: ${name} with decoratorCall = ${decoratorCall}`) 
         if ( store.isRegistered( name )) {
             throw new CxError(__filename, 'addAction()', 'CTRL-0002',`Action ${name} is already registred in the Store  - call ctrl.removeAction to remove it first`)
         }
@@ -118,9 +117,6 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
             // $plog.debug('Flushing the performence info')
         }
     }
-    // else {
-    //    console.log(`NOT Adding Action and graph Node: ${action.name} with decoratorCall = ${decoratorCall}`) 
-    // }
     return Promise.resolve()
 }
 
@@ -254,8 +250,8 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
  */
 export let getPromiseChain = ( actionName: string, runAll: boolean = true ): RunIntf => {
     let jobId = jobIdSeq().next().value as number
-    let jobKey: string = 'J' + jobId
-    if ( ! store.index.has( jobKey ) ) { store.index.set( jobKey , new Map<string,any>() ) }   
+    let jobKey: string =  store.addIndexKey( jobId, 'J' )
+    
     p.mark( `promiseChain_${jobId}` )
     let actionsToRun = getActionsToRun(actionName, jobId)
     //
@@ -320,6 +316,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                     */
                     if ( actions.has(key) ) {
                         let actionObj = actions.get(key) as Action<any> 
+                        actionObj.currActionDesc = actionDesc
                         let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
                         let dirty = ( isDirty(key) ||  runAll || firstRun )
                         if ( dirty ) {
@@ -327,9 +324,12 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                             actionDesc.ran = true
                             actionObj.meta.callCount += 1
                         }
-                        // else {
-                        //     ctrl.store.index.get( actionDesc.jobId , new Map<string,any>() )  
-                        // }
+                        else { 
+                            //
+                            // Add to job-index even when action is not dirty/not called
+                            //
+                            store.index.get(jobKey)!.set( actionDesc.name , store.getStoreId( actionDesc.name ) ) 
+                        }
                         actionDesc.isDirty = dirty
                         actionDesc.success  = res || ! dirty                    
                         actionDesc.storeId = store.getStoreId( key, -1 )
@@ -388,13 +388,13 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
  */
 export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<boolean> => {
     let jobId = jobIdSeq().next().value as number
+    let jobKey: string =  store.addIndexKey( jobId, 'J' )
+
     let actionsToRun = getActionsToRun(actionName, jobId) 
-    
     p.mark(`runTarget_${jobId}`) // , actionsToRun.get(actionName)
 
     let resAll = true
     if ( graph.hasNode( actionName) ) {
-        let actionList = getActionsToRun(actionName)
         actionsToRun.forEach( async ( actionDesc: ActionDescriptor, name: string ) => {          
             p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`) 
             let actionObj = actions.get( actionDesc.name ) as Action<any>
@@ -402,18 +402,25 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
             
             try {
                 let res = false 
+                actionObj.currActionDesc = actionDesc
                 let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                let dirty = ( isDirty(actionName) ||  runAll || firstRun )
+                let dirty = ( isDirty(actionDesc.name) ||  runAll || firstRun )
                 if ( dirty ) {
-                    await (actionObj as any)[funcName]()  // call it
-                    res = true
+                    //
+                    // Run the objects main function
+                    //
+                    res = await (actionObj as any)[funcName]()  // call it
                     actionDesc.ran     = true
                     actionObj.meta.callCount += 1
+                }
+                else { 
+                    // Add to job-index even when action is not dirty/not being called
+                    store.index.get(jobKey)!.set( actionDesc.name , store.getStoreId( actionDesc.name ) ) 
                 }
                 actionDesc.isDirty = dirty
                 actionDesc.success = res || ! dirty
                 actionObj.currActionDesc = actionDesc
-                resAll = res ? resAll : false
+                resAll = res && resAll? res : false
             }
             catch (err) {
                 throw new CxError(__filename, 'runTarget()', 'CTRL-0006', `Failed to run ${actionDesc.name}: ${err}`, err)
@@ -428,19 +435,3 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
     p.mark(`runTarget_${jobId}`)
     return Promise.resolve(resAll)         
 }
-/**
- TODO: rewrite this if it is really needed
-export let runDependants = ( actionName: string ): boolean => {
-        let resAll = true
-        if ( graph.hasNode( actionName) ) {
-            let actionList = graph.dependantsOf(actionName)
-            for ( let action of  actionList ) {
-                // $log.debug(`RUN: ${action}`)
-                let res = callFunctionByAction( actions[action] as Action<any> )
-                resAll = ( res == true ) ? resAll : false
-            }
-        }
-        else throw Error(`ctrl.Dependants() - unknown actionName: ${actionName}`)  
-        return resAll
-    }
-*/

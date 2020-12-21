@@ -153,6 +153,16 @@ Deno.test('Generator functions should return incremented numbers', () => {
         expect(B.storeId).toEqual( storeId )
         expect(B.children.length).toEqual(0)
     })
+
+    Deno.test('01 - ctrl.getActionsToRun should return the same jobId for all objects', () => {
+      let actionsToRun = ctrl.getActionsToRun('ObjC')
+      let prevJobId = -1
+      actionsToRun.forEach( (actionDesc, key) => {
+        expect(prevJobId === -1 || ( prevJobId === actionDesc.jobId ) ).toBeTruthy()
+        // console.log(`Object: ${key}, JobId: ${actionDesc.jobId}`)
+        prevJobId = actionDesc.jobId
+      })
+    })
   
     @action<D>({ 
         state:{name: 'D', age:42 },

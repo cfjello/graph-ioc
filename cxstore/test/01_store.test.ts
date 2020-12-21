@@ -1,4 +1,4 @@
-import { CxStore }  from "./mod.ts"
+import { CxStore }  from "../mod.ts"
 import { expect } from 'https://deno.land/x/expect/mod.ts'
 
 let store = new CxStore()
@@ -95,42 +95,6 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
         sanitizeResources: false,
         sanitizeOps: false
     })
-    /*
-    /* Dropped this feature due to the merge into of the fields jobid, taskId, storeId, that are always different
-    /* potentially giving the compare before insert a bad performance
-    /*
-    Deno.test( {
-        name: 'Store: It should publish in Store only when there is a change', 
-        fn: async () => {
-        
-            let nameAndAge = new NameAndAge({name: 'Benny', age:38 })
-            await store.register("NameAndAge", nameAndAge.state)
-            await store.set("NameAndAge", nameAndAge.state)
-
-            let storeId = store.getStoreId("NameAndAge")
-            expect(storeId).toBeGreaterThan(-1)
-            //
-            // Setting same values a second time
-            // 
-            await store.set("NameAndAge", nameAndAge.state) 
-            await store.set("NameAndAge", nameAndAge.state) 
-            await store.set("NameAndAge", nameAndAge.state)
-
-            // storeId = store.getStoreId("NameAndAge")
-            expect(store.getStoreId("NameAndAge")).toEqual(storeId)
-
-            // Now update
-            nameAndAge.state.age = 40;
-            await store.set("NameAndAge", nameAndAge.state)
-            expect(store.getStoreId("NameAndAge")).toEqual(storeId + 1)
-
-            await store.set("NameAndAge", nameAndAge.state) 
-            expect(store.getStoreId("NameAndAge")).toEqual(storeId + 1)
-        },
-        sanitizeResources: false,
-        sanitizeOps: false
-    })
-    */
 
     /* Dropped, since remove of records are now on jobId level 
     * in order to ensure they dependant store object are keep and deleted together

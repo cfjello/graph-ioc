@@ -23,9 +23,6 @@ let mac = (await getMac() as string).replace(/:/g,'')
         // you can change format of output message using any keys in `LogRecord`
         // formatter: "{levelName} {msg}",
 
-
-
-
 await log.setup({
     handlers: {
       console:  new log.handlers.ConsoleHandler("DEBUG"),

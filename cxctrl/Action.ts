@@ -98,18 +98,19 @@ export abstract class Action<S> {
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
         let self = this
         let lock = `${actionDesc.name}_run`
+        let res = false
         
         // The same async object should always execute sequencially 
-        Mutex.doAtomic( lock , async () => {
+        await Mutex.doAtomic( lock , async () => {
             try {
                 self.currActionDesc = actionDesc
-                await (this as any)[self.meta.funcName!]()
+                res = await (this as any)[self.meta.funcName!]()
             }
             catch(err) {
                 throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0001', `Failed to call ${self.meta.className}.${self.meta.funcName}`, err)
             }
         })
-        return Promise.resolve(true)
+        return Promise.resolve(res)
     }
     
     /**

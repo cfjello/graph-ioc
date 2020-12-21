@@ -35,9 +35,10 @@ export class CxError implements customErrorIntf  {
                 }
                 else {
                     origCxErr = origErr as CxError
-                    if ( origCxErr.errChain.length > 0 )  
+                    if ( !isUndefined(origCxErr.errChain) && origCxErr.errChain.length > 0 )  {
                         this.errChain = origCxErr.errChain
-                    origCxErr.errChain = [] // clear these references
+                        origCxErr.errChain = [] // clear these previous references
+                    }      
                 }
                 //
                 // Now add the previous error to the errChain 
