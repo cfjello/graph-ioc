@@ -32,18 +32,7 @@ class OA extends Action<A> {
   } 
 }
 
-console.log ('---------------------------------------')
 let objA = await new OA('hirs').register()
-
-
-/*
-let objA = Ctrl.createAction({  name: 'Young',
-                                ctrl: 'ctrl',
-                                state: { gender: 'male', age: 13}
-                                }, 
-                                OA)
-*/ 
-
 
 Deno.test('00 - Action decorator: It should decorate and intialize an Action', () => {
   expect(objA.state.gender).toBeDefined()
@@ -77,11 +66,9 @@ class OB extends OA {
     console.debug(`Running OB extends OA Constructor`)
   }
 }
+
 console.log ('---------------------------------------')
 let objB = await new OB('hirs').register()
-
-// let objB = Ctrl.cloneAction( { name: 'Old', ctrl: 'ctrl', state: { gender: 'female', age: 85} }, OA )
-// Ctrl.addAction(objB)
 
     Deno.test('00 - Extended class should intialize the new Action instance', () => {
       expect(objB.state.gender).toBeDefined()
@@ -137,4 +124,66 @@ let objC = await new OC('aunty').register()
   Deno.test('00 - The initial Parent class should not have been changed', () => {
     expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
   })
- 
+
+
+  {
+    @action<A>( {
+        name: 'Young',
+        ctrl: 'main',
+        state: { gender: 'male', age: 13}, 
+        init: true
+    })
+    class OA2 extends Action<A> {
+        constructor( state: A = {} as A, public preferGenderName: string = 'ey' ) {
+            super(state)
+        }
+    
+        main():void { 
+        this.state.gender = this.preferGenderName
+        this.publish()
+        } 
+    }
+    
+    let instOA2 = await new OA2( {gender: 'female', age: 23}, 'hirs' ).register()
+    let instOA2B = await new OA2().register('Younger')
+    
+    Deno.test( {
+      name: '00 - Instance State set via the constructor overwrites decorator configuration', 
+      fn: async () => {
+          expect(instOA2.meta).toBeDefined()
+          expect(instOA2.meta.funcName).toEqual('main')
+          expect(instOA2.meta.name).toEqual('Young')
+          expect(instOA2.meta.className).toEqual('OA2')
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
+        })
+    Deno.test( {
+      name: '00 - Instance meta data Name can be set via the Register(name) call', 
+      fn: async () => {
+          expect(instOA2B.meta).toBeDefined()
+          expect(instOA2B.meta.funcName).toEqual('main')
+          expect(instOA2B.meta.name).toEqual('Younger')
+          expect(instOA2B.meta.className).toEqual('OA2')
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
+      })
+  
+
+    Deno.test( {
+      name: '00 - Instance data should be set correctly', 
+      fn: async () => {
+          expect(instOA2.state).toBeDefined()
+          expect(instOA2.state.gender).toEqual('female')
+          expect(instOA2.state.age).toEqual(23)
+          expect(instOA2.preferGenderName).toEqual('hirs')
+          expect(instOA2B.state).toBeDefined()
+          expect(instOA2B.state.gender).toEqual('male')
+          expect(instOA2B.state.age).toEqual(13)
+          expect(instOA2B.preferGenderName).toEqual('ey')
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
+      })
+  }

@@ -1,19 +1,24 @@
 import * as ctrl from "./Ctrl.ts"
 import { jobIdSeq } from "./generators.ts"
 // import * as _ from "https://deno.land/x/lodash@4.17.19/lodash.js"
-// import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
+import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
 // import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
-// import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
+import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
+import isEmpty from "https://raw.githubusercontent.com/lodash/lodash/master/isEmpty.js"
+
 import { Mutex, ee, CxError }    from "../cxutil/mod.ts"
 import { ActionDescriptor } from "./ActionDescriptor.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 
 export abstract class Action<S> { 
 
-    constructor() {
-        // console.log('Running Action Constructor')
+    constructor(  state: S = {} as S) {
+        if ( ! isEmpty(state) ) {
+            this.state = merge( state , { jobId: -1, taskId: -1 } ) 
+            this.stateInit = true
+        }
     }
     //
     // member variables
@@ -24,12 +29,12 @@ export abstract class Action<S> {
      * State is the data that the action will eventually publish for other actions to read
      */
     public state: S & StateKeys  = {} as S & StateKeys
+    public stateInit: boolean = false
 
      /**
      * Meta is the meta-data this object and action
      */
     public meta: MetaType = {} as MetaType
-
 
     /**
      * The list og other object that this action instance and its state depends on
@@ -74,6 +79,19 @@ export abstract class Action<S> {
     }
 
     /** 
+     * Update the state using a Partial type - this allows you to supply an Partil object that only contains the properties you want to update
+     * @param updState A Partial version of the state object, only containing the updates
+    */
+    update = ( updState: Partial<S> ): void  => {
+        try {
+            this.state = merge(this.state, updState)
+        }
+        catch ( err ) {
+            throw new CxError('Action.ts', 'update', 'ACT-0002', `Failed to update ${this.meta.className}.state`, err)
+        }
+    }
+
+    /** 
      * Publish the changed state 
     */
     publish = (): void => {
@@ -83,15 +101,18 @@ export abstract class Action<S> {
     
     /** 
     * Register the Action Object
+    *
+    * @param storeName The name of the store object 
+    * @returns The reference itself
     */
 
-    register = async(): Promise<any> => { 
+    register = async( name: string = this.meta.name as string ): Promise<any> => { 
         let self = this
-        let name = this.meta.name! as string
+        if ( name !== this.meta.name ) this.meta.name = name 
+
         ctrl.initCounts.set( name, ctrl.initCounts.has( name ) ? ctrl.initCounts.get(name)! + 1 : 1 )
         let _cnt_ = ctrl.initCounts.get(name)
         await ctrl.addAction( this as Action<any>, _cnt_ )
-        // return .then( (resolve) { resolve( self ) } )
         return new Promise<Action<S>>( function(resolve) { resolve( self ) })
     }
 
@@ -107,7 +128,7 @@ export abstract class Action<S> {
                 res = await (this as any)[self.meta.funcName!]()
             }
             catch(err) {
-                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0001', `Failed to call ${self.meta.className}.${self.meta.funcName}`, err)
+                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0001', `Failed to call ${this.meta.className}.${self.meta.funcName}`, err)
             }
         })
         return Promise.resolve(res)

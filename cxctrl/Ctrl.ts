@@ -91,7 +91,7 @@ export let addDependency = ( actionName: string, dependency: string ): void => a
  *      - register the data structure (the state) in the store
  *      - add the action to the graph structure
  */
-export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): Promise<void> => {
+export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): Promise<Action<any>> => {
     if ( decoCallCnt === 1 ) { 
         // decorator calls multiple times, once for each class extends, but only the first is relevant
         let name = action.meta.name!
@@ -101,7 +101,6 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
         let actionDesc = ActionDescriptorFactory(name)
         try {        
             perf.mark( 'addAction', actionDesc )
-
             await store.register( name, action.state, -1, actionDesc ).then(() => { 
                 actionDesc.storeId   = store.getStoreId( name)
                 action.currActionDesc = actionDesc       
@@ -117,7 +116,7 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
             // $plog.debug('Flushing the performence info')
         }
     }
-    return Promise.resolve()
+    return Promise.resolve(action)
 }
 
 
