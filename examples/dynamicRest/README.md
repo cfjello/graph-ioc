@@ -21,6 +21,7 @@ This will generate code and data files in the "resources" directory.
 To run this code and start the web server, use the command:
 
 ```
+cd ./examples/dynamicRest
 deno test -A --config ../../tsconfig.json resources/app.test.ts
 ```
 This will produce the the output, showing each a the generated state objects: 

@@ -1,11 +1,11 @@
-import {perf} from 'cxutil'
+import {perf} from '../../cxutil/mod.ts'
 /**
  * Timing decorater 
  */
 export function timing() {
     return (target: any, propertyKey: string, descriptor: PropertyDescriptor) => {
         // Ensure we have the descriptor that might been overriden by another decorator
-        if (descriptor === undefined) { descriptor = Object.getOwnPropertyDescriptor(target, propertyKey) }
+        if (descriptor === undefined) { descriptor = Object.getOwnPropertyDescriptor(target, propertyKey)! }
         const originalMethod = descriptor.value;
         // Use the function's this context instead of the value of this when log is called (no arrow function)
         descriptor.value = function (...args: any[]) {

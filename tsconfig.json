@@ -1,9 +1,9 @@
 {
 	"compilerOptions": {
 		"experimentalDecorators": true,
+		"emitDecoratorMetadata": true,
 		"alwaysStrict": false,
 		"noImplicitUseStrict": true,
-		"noImplicitAny": true,
-		"isolatedModules": true
+		"removeComments": false,
 	}
 }

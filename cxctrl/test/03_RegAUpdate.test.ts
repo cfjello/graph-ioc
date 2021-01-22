@@ -7,7 +7,6 @@ type testFuncModel = { arg1:string, arg2:string }
 type A = {name:string, age: number} 
 type F = {firstName:string, lastName:string, job: string, age: number, sex: string}
 
-
 //
 // Leaf notes are initialized by:
 // - their supplied initial action state object
@@ -93,5 +92,4 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
             sanitizeResources: false,
             sanitizeOps: false
         })
-
 }
