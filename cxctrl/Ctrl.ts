@@ -1,13 +1,10 @@
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
 import { CxStore }  from "../cxstore/CxStore.ts"
-import {$log, perf, $plog, ee, CxError } from "../cxutil/mod.ts"
-import { RunIntf } from "./interfaces.ts"
-import { ActionDescriptor, ActionDescriptorFactory } from "./ActionDescriptor.ts"
+import {$log, perf, ee, CxError } from "../cxutil/mod.ts"
+import { RunIntf, ActionDescriptor } from "./interfaces.ts"
 import { Action } from './Action.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
-
-// import { action } from "./mod.ts"
 
 const __filename = new URL('', import.meta.url).pathname
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
@@ -15,7 +12,7 @@ export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta
 export let store = new CxStore()
 
 //
-// Performance logger instance
+// Performance measurement and logger instance
 //
 export let p = perf
 
@@ -41,9 +38,9 @@ export let initCounts = new Map<string,number>()
  * 
  * @param action The action instance that want to publish
  */
-export let publish = async ( action: Action<any> ): Promise<void> => { 
-        await store.set( action.meta.name!, action.state, -1, action.currActionDesc )
-        Promise.resolve()   
+export let publish = async ( action: Action<any> ): Promise<number> => { 
+        let storeId = await store.set( action.meta.name!, action.state, -1, action.currActionDesc )
+        return Promise.resolve(storeId)   
 }
 
 /**
@@ -68,10 +65,10 @@ export let  getState = (name:string, idx: number = -1): any =>  {
   * @param dependencies Array of dependencies
   */
 export let  addDependencies = ( actionName: string, dependencies: string[] ): void => {
-        for ( let dependency of dependencies ) { 
-            graph.addDependency( actionName, dependency )
-        } 
-    }
+    for ( let dependency of dependencies ) { 
+        graph.addDependency( actionName, dependency )
+    } 
+}
 
 /**
   *  Add an array of dependencies (containing names of actions) for a named action
@@ -84,6 +81,23 @@ export let addDependency = ( actionName: string, dependency: string ): void => a
 //
 // Action functions
 //
+
+/**
+ * Add an initial Descriptor for an Action 
+ * 
+ * @param name  The name of the Action:
+ * @return ActionDescriptor  A descriptor object with some initialized values  
+ */
+export function ActionDescriptorFactory( name: string ): ActionDescriptor {
+    return new ActionDescriptor( 
+                  name, // rootName
+                  name, // name
+                  '00.00',  // ident
+                  jobIdSeq().next().value  as number,  // jobId
+                  taskIdSeq().next().value as number  // taskId
+    )
+  }
+
 /**
  * Add an action to the Graph based IoC System
  * 
@@ -119,15 +133,23 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
     return Promise.resolve(action)
 }
 
-
+/**
+ * Delete entries related to a specific jobId 
+ * 
+ * @param jobId The jobId to delete:
+ *      - remove Store state entries published by the job
+ *      - clean up the control metadata related to the job
+ */
 export let releaseJob = ( jobId: number) => {
     let idxKey: string = 'J' + jobId
-    if ( ! store.index.has( idxKey) )
+    if ( store.index.has( idxKey) ) { 
+        store.index.get( idxKey )!.forEach( (val,key) => {
+            // TODO: implement this
+        })
+    }
+    else {
         throw new CxError(__filename, 'ctrl.releaseJob ()', 'CTRL-0004',`Cannot find an store index for ${idxKey}`)
-
-    store.index.get( idxKey)!.forEach( (val,key) => {
-        // TODO: implement this
-    })
+    }
 }
 
 /**

@@ -1,19 +1,15 @@
 import * as ctrl from "./Ctrl.ts"
-import { jobIdSeq } from "./generators.ts"
-// import * as _ from "https://deno.land/x/lodash@4.17.19/lodash.js"
-import isUndefined from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
 import uniq from "https://raw.githubusercontent.com/lodash/lodash/master/uniq.js"
 import union from "https://raw.githubusercontent.com/lodash/lodash/master/union.js"
-// import cloneDeep from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
 import merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
 import isEmpty from "https://raw.githubusercontent.com/lodash/lodash/master/isEmpty.js"
 
 import { Mutex, ee, CxError }    from "../cxutil/mod.ts"
-import { ActionDescriptor } from "./ActionDescriptor.ts"
+import { ActionDescriptor } from "./interfaces.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 
 export abstract class Action<S> { 
-
+    
     constructor(  state: S = {} as S) {
         if ( ! isEmpty(state) ) {
             this.state = merge( state , { jobId: -1, taskId: -1 } ) 
@@ -95,7 +91,6 @@ export abstract class Action<S> {
      * Publish the changed state 
     */
     publish = (): void => {
-        let self = this
         ctrl.publish( this as unknown as Action<any> )
     }
     

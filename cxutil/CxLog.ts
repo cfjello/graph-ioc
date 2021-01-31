@@ -1,8 +1,7 @@
 import * as log from "https://deno.land/std/log/mod.ts";
 import * as path from "https://deno.land/std/path/mod.ts"
 import { getMac } from 'https://cdn.depjs.com/mac/mod.ts'
-import { LogRecord } from "https://deno.land/std@0.79.0/log/logger.ts";
-import  merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
+import { _ } from '../cxutil/lodash.ts'
 
 export type ErrLogType = {
   level: string,
@@ -33,7 +32,7 @@ await log.setup({
           let dateEntry = logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
           let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": "${logRecord.msg}" }`
           let msg = JSON.parse( msgJSON )
-          let logEntry = merge ( { 
+          let logEntry = _.merge ( { 
             level: logRecord.levelName,
             mac: mac, 
             date: dateEntry, 
@@ -47,7 +46,7 @@ await log.setup({
         formatter: (perfRecord)  => {
           let dateEntry = perfRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
           let msg = JSON.parse(perfRecord.msg)
-          let logEntry  = merge ( { 
+          let logEntry  = _.merge ( { 
             level: perfRecord.levelName,
             mac: mac, 
             date: dateEntry 
@@ -75,14 +74,3 @@ await log.setup({
   // get default loggers
 export const $log  = log.getLogger();
 export const $plog = log.getLogger('perf');
-
-/*
-// get default logger
-logger = log.getLogger();
-logger.debug("fizz"); // logs to `console`, because `file` handler requires "WARNING" level
-logger.warning(41256); // logs to both `console` and `file` handlers
-
-$log.debug("fizz from $log"); // logs to `console`, because `file` handler requires "WARNING" level
-$log.warning(41256 + " from $log"); // logs to both `console` and `file` handlers
-
-*/

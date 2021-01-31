@@ -1,8 +1,7 @@
 
 import { ctrl, Action, action }  from '../mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
-import { RunIntf } from "../interfaces.ts"
-import { ActionDescriptor } from '../ActionDescriptor.ts'
+import { RunIntf, ActionDescriptor } from "../interfaces.ts"
 
 /*
 import * as  Ctrl from '../src/Ctrl'

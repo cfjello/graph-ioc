@@ -1,0 +1,46 @@
+import { getObjectTypes, Reflect } from "./mod.ts"
+import { Action } from "../cxctrl/mod.ts"
+
+export function defineStateTypes<T>( metaName: string, obj: Action<T> ) {
+    let inferredTypes = getObjectTypes( metaName, obj.state ) 
+    Reflect.defineMetadata( obj.meta.className , inferredTypes, obj , 'state' );
+}
+
+export function defineObjectTypes<T>( metaName: string, obj: Object ) {
+    let inferredTypes = getObjectTypes<T>( metaName, obj as T ) 
+    Reflect.defineMetadata( metaName, inferredTypes, obj );
+}
+
+/*
+// define a sample target
+var target = { name: 'Ross', age: 21 };
+
+// add metadata to `target` and `target.name`
+Reflect.defineMetadata( 'version', 1, target );
+Reflect.defineMetadata( 'is', 'string', target, 'name' );
+
+// check if metadata exists
+console.log( 'has: target(version) ->',
+Reflect.hasMetadata( 'version', target ) );
+console.log( 'has: target.name(is) ->',
+Reflect.hasMetadata( 'is', target, 'name' ) );
+console.log( 'has: target.age(is) ->',
+Reflect.hasMetadata( 'is', target, 'age' ) );
+
+// get metadata keys
+console.log( 'keys: target ->',
+Reflect.getMetadataKeys( target ) );
+console.log( 'keys: target.name ->',
+Reflect.getMetadataKeys( target, 'name' ) );
+console.log( 'keys: target.age ->',
+Reflect.getMetadataKeys( target, 'age' ) );
+
+// delete metedata key
+console.log( 'delete: target(version) ->',
+Reflect.deleteMetadata( 'version', target ) );
+console.log( 'delete: target.name(is) ->',
+Reflect.deleteMetadata( 'is', target, 'name' ) );
+console.log( 'delete: target.age(is) ->',
+Reflect.deleteMetadata( 'is', target, 'age' ) );
+
+*/

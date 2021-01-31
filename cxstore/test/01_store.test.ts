@@ -45,12 +45,10 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
             expect( state.get('testContext') ).toBeDefined()
             expect(store.size()).toEqual(1)
 
-            
             let context2: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
             await store.register('testContext2', context2)
             expect(store.size()).toEqual(2)
         
-
             let context3: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
             await store.register('testContext3', context3)
             expect(store.size()).toEqual(3)

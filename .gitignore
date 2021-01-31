@@ -1,5 +1,5 @@
 /lokijs
-/cxcode
+/cxcode/clips
 /JSONPath
 /reflect
 /cxctrl/debugging.ts
@@ -8,3 +8,4 @@ cxctrl/lodashTest.ts
 logs/ctrl.log
 logs/perf.log
 /lib
+/examples/headIsland

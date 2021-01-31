@@ -1,7 +1,7 @@
 import { $plog } from './CxLog.ts' 
-import  merge from "https://raw.githubusercontent.com/lodash/lodash/master/merge.js"
+import { _ } from '../cxutil/lodash.ts'
 import  ShortUniqueId  from 'https://cdn.jsdelivr.net/npm/short-unique-id@latest/short_uuid/mod.ts';
-import { ActionDescriptor} from "../cxctrl/ActionDescriptor.ts"
+import { ActionDescriptor} from "../cxctrl/interfaces.ts"
 import { CxError } from "./mod.ts"
 
 export type  PerfMeasureType = { 
@@ -60,7 +60,7 @@ class Perf<P> {
     mark( token: string, desc: P = {} as P ) {
         if ( this.enabled ) {
             if ( ! this.perf.has(token) || this.perf.get(token)!.end !== undefined ) {
-                let perfRec: PerfMeasureType & P  = merge ( { 
+                let perfRec: PerfMeasureType & P  = _.merge ( { 
                     type:  'perf',
                     token: token, 
                     start: performance.now(), 
@@ -73,7 +73,7 @@ class Perf<P> {
                 let entry: PerfMeasureType & P = this.perf.get(token)!
                 entry.end = performance.now() 
                 entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
-                let logEntry: PerfMeasureType & P = merge(entry, desc)
+                let logEntry: PerfMeasureType & P = _.merge(entry, desc)
                 $plog.info( logEntry as unknown )
                 // this.perf.delete(token)
             }

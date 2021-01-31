@@ -1,22 +1,19 @@
 import { StateMetaData } from "./interfaces.ts"
-import { ActionDescriptor, ActionDescriptorFactory } from "../cxctrl/ActionDescriptor.ts"
-import { StateKeys } from "../cxctrl/interfaces.ts"
+import { ActionDescriptorFactory } from "../cxctrl/Ctrl.ts"
+import { ActionDescriptor, StateKeys } from "../cxctrl/interfaces.ts"
 import { storeIdSeq } from "./generators.ts"
 import cloneDeep    from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
-import clone        from "https://raw.githubusercontent.com/lodash/lodash/master/clone.js"
 import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master/isObject.js"
 import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
-import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
+// import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
 import { Mutex, $log, ee, CxError } from "../cxutil/mod.ts"
-import { store } from "../cxctrl/Ctrl.ts"
-import { Action } from "../cxctrl/mod.ts"
 
 const __filename = new URL('', import.meta.url).pathname;
 
 export class CxStore {
     /**
      * Cxstore class implementing the StoreIntf
-     * TODO: for later - update the Store to support shared memory and workers
+     * 
      */ 
     state           = new Map<string, Map<number, any>>()
     index           = new Map<string, Map<string, any>>()
@@ -37,11 +34,10 @@ export class CxStore {
         objRef: T & StateKeys, 
         threshold: number = -1, 
         actiondesc: ActionDescriptor | undefined = undefined
-        ): Promise<number> 
-        {       
+        ): Promise<number> {       
 
             return this.set( key, objRef , threshold, actiondesc )
-        } 
+    } 
 
     setThreshold( key: string, _threshold: number ) : number {
         let threshold = _threshold < 2 ? -1 : _threshold
@@ -86,7 +82,7 @@ export class CxStore {
     /**
      * Adds a given index identifier, e.g. a jobId to the index
      * 
-     * @param idxId    The jobId of the indexed object
+     * @param idxId    The index Id of the indexed object
      * @param prefix   The index prefix, a string to be added in front of the index id (idxId)
      * @return string  The index identifier
      */
@@ -97,11 +93,12 @@ export class CxStore {
         }
         return idxKey   
     }
+
     /**
-     * Determines whether index object exists for a given jobId
+     * Determines whether index object exists for a given index Id
      * 
      * @param key The name of the indexed object
-     * @param idxId  The jobId of the indexed object
+     * @param idxId  The index Id of the indexed object
      * @return boolean
      */
     hasIndexId (key: string, idxId: number, prefix: string = 'J'): boolean {
@@ -111,7 +108,7 @@ export class CxStore {
 
      /**
      * Sets the index for a given index Id (defined as a number and a fixed prefix) and defaults to the previous storeId if no storeId is given
-     * (This is usefull for generation the objects index for a given e.g. jobId when the key is not dirty)
+     * (This is usefull for generation an index for the objects created given job run)
      * 
      * @param key The name of the indexed object
      * @param idxId  The idxId of the indexed object
@@ -121,7 +118,7 @@ export class CxStore {
     setIndexId (key: string, idxId:number, prefix: string = 'J', storeId: number = -1 ): void {
         let idxKey: string = prefix + idxId
         if ( ! this.index.has( idxKey) ) {
-            throw new CxError(__filename, 'setIndexId()', 'STORE-0003', `Missing jobId: ${idxKey} in store index`)
+            throw new CxError(__filename, 'setIndexId()', 'STORE-0003', `Missing index Id: ${idxKey} in store index`)
         }
         else {
             if ( this.hasStoreId( idxKey , storeId ) ) 
@@ -148,15 +145,15 @@ export class CxStore {
     }
     */
 
-     /**
+    /**
      * Gets a collection of StoreIDs for a given key, idxId and prefix - this i.e. can be used 
-     * to fetch references to all objects related to a given jobId. Object-states in the collection cannot be updated
+     * to fetch references to all objects related to a given index Id. Object-states in the collection cannot be updated
      * 
      * @param key The name of the indexed object
      * @param idxId  The idxId of the indexed object
      * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
      * @return Map<string, any> A map of named objects and thier StoreIDs
-     */
+    */
     getCollection( idxId:number, prefix: string = 'J' ) : Map<string, any> {
         let idxKey: string = prefix + idxId
         let collection = new Map<string, any>()
@@ -176,7 +173,7 @@ export class CxStore {
      * Gets the object-state for a named indexed object of type S
      * 
      * @param key The name of the indexed object
-     * @param idxId  The jobId of the indexed object
+     * @param idxId  The index Id of the indexed object
      * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
      * @return S | undefined if the indexed object does not exist
      */
@@ -190,7 +187,6 @@ export class CxStore {
             return undefined
     }
    
-
     /**
      * Get store id of cx store
      * 

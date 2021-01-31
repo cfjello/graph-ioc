@@ -1,6 +1,6 @@
 # CxMeta
 
-Simple Extended Javascript Type Detection for an instantiated javascript object. The getObjectTypes() return an object in a json-schema like format, but due to the javascript specific data types the output is NOT compatible with the json-schema that has other data types. The detected javascript data types are: 
+Simple Extended Javascript Type Detection for an instantiated javascript object. The getObjectTypes() returns an object in a json-schema like format, but due to the javascript specific data types the output is NOT compatible with the json-schema that has other data types. The detected javascript data types are: 
 
 - symbol
 - string
@@ -20,10 +20,10 @@ as well as:
 - undefined
 
 
-Please Note: 
+You should Note: 
 - Since the data type lookup is done on an instantiated javascript object you will have to initialize the object with values that allow for detection of the type - 'null' and 'undefined' are by definition not very telling.
-- Some types like 'enum' in the TypeScript example below, as well all other non-primitive TypeScript types, are not detectable once compiled and assigned to a javascript object
-- This extented type detection has only been tested on the Deno default V8 Typescript to javascript compile version.
+- Some types like 'enum' in the TypeScript example below, as well all other non-primitive TypeScript types, are not detectable once compiled and assigned to a javascript object, but user defined classes are detected.
+- This extented type detection has only been tested using the Deno default V8 (Typescript to) javascript compile target.
 
 Given an instantiated object (the complete file can be found in the './examples' directory):
 
@@ -136,6 +136,97 @@ produces the following output, where you should note:
           "Image2"
         ]
       }
+    }
+  }
+}
+```
+The module will also correctly handle nested type as in:
+```
+type ProductlinesType = {
+    productLine: string;
+    textDescription?: string;
+    htmlDescription?: string;
+    image?: string | null;
+} // End of productlinesType
+
+
+export type ProductsType = {
+    productCode: symbol;
+    productName: string;
+    productLine: ProductlinesType;
+    productScale: string;
+    productVendor: string;
+    productDescription: string;
+    quantityInStock: number;
+    buyPrice: number;
+    MSRP: number;
+} // End of productsType
+
+let products: ProductsType = {
+    productCode: Symbol("ID"),
+    productName: "Guitar String",
+    productLine: {
+        productLine: "Music",
+        textDescription: "Music Store Inc.",
+        htmlDescription: "<p>Deine Mega Store ins Germania<p>",
+        image: null,
+    },
+    productScale: "46",
+    productVendor: "Fender",
+    productDescription: "A-String",
+    quantityInStock:999,
+    buyPrice: 10,
+    MSRP: 999,
+}
+```
+The resulting object will have the same nesting:
+```
+{
+  "$schema": "http://js-schema.org/draft-07/js-schema#",
+  "$id": "http://example.com/ProductType.schema.json",
+  "title": "ProductType",
+  "type": "object",
+  "properties": {
+    "productCode": {
+      "type": "symbol"
+    },
+    "productName": {
+      "type": "string"
+    },
+    "productLine": {
+      "type": "object",
+      "properties": {
+        "productLine": {
+          "type": "string"
+        },
+        "textDescription": {
+          "type": "string"
+        },
+        "htmlDescription": {
+          "type": "string"
+        },
+        "image": {
+          "type": "null"
+        }
+      }
+    },
+    "productScale": {
+      "type": "string"
+    },
+    "productVendor": {
+      "type": "string"
+    },
+    "productDescription": {
+      "type": "string"
+    },
+    "quantityInStock": {
+      "type": "number"
+    },
+    "buyPrice": {
+      "type": "number"
+    },
+    "MSRP": {
+      "type": "number"
     }
   }
 }

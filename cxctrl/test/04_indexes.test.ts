@@ -1,8 +1,6 @@
 import { ctrl, Action, action }  from '../mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
-import { RunIntf } from "../interfaces.ts"
-import { ActionDescriptor } from '../ActionDescriptor.ts'
-import cloneRegExp from "https://raw.githubusercontent.com/lodash/lodash/master/.internal/cloneRegExp.js"
+import { RunIntf, ActionDescriptor } from "../interfaces.ts"
 
 type P = {name:string, age: number} 
 type Q = {name:string, age: number}

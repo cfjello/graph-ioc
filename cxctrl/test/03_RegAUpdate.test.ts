@@ -66,7 +66,7 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
                 super()
             }
             main = async (): Promise<boolean> => { 
-                this.update( { lastName: 'Castro', age: 108, job: 'Deceaced'})
+                this.update( { lastName: 'Castro', age: 108, job: 'Deceased'})
                 this.publish()
                 return true
             }
@@ -82,11 +82,11 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
             fn: async () => {
                 expect(res).toEqual(true)
                 expect(nameAndAge3.state.lastName).toEqual('Castro')
-                expect(nameAndAge3.state.job).toEqual('Deceaced')
+                expect(nameAndAge3.state.job).toEqual('Deceased')
                 expect(nameAndAge3.state.age).toEqual(108)
                 let state = ctrl.getState('Fidel')
                 expect(state.lastName).toEqual('Castro')
-                expect(state.job).toEqual('Deceaced')
+                expect(state.job).toEqual('Deceased')
                 expect(state.age).toEqual(108)
             },
             sanitizeResources: false,

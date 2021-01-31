@@ -1,5 +1,3 @@
-
-
 /**
  * Finds a more specific type for a given property name in an JS object - courtesy of mozilla
  * 
@@ -11,14 +9,22 @@ let inspectObject = (obj: any | null ): string => {
     if (obj == null) { return 'null' }
     let matchType = typeof obj as string
     let proto = Object.getPrototypeOf(obj)
-    if ( proto && proto.constructor && proto.constructor.name !== 'Object' ) { // This is a class
+    //
+    // Check for Classes an Functions 
+    //
+    if ( proto && proto.constructor && proto.constructor.name !== 'Object' ) {
         matchType = proto.constructor.name 
-        // console.log (`Detected constructor typed: ${matchType}`)
+    }
+    //
+    // Make the destinction between Function and function - in V8 it seems that 
+    // Function has a name property value: {"value":"anonymous","writable":false,"enumerable":false,"configurable":true} 
+    // where function has a name property value with an actual function name: {"value":"G","writable":false,"enumerable":false,"configurable":true}
+    //
+    if ( matchType === 'Function' && Object.getOwnPropertyDescriptor(obj, 'name')?.value !== 'anonymous' ) {
+        matchType = 'function'
     }
     return matchType;
 }
-
-// type extTypes = "string" | "number" | "bigint" | "boolean" | "symbol" | "undefined" | "object" | "function"
 
 /**
  * Finds the type for a given property name in an object 
@@ -28,7 +34,7 @@ let inspectObject = (obj: any | null ): string => {
  */
 export function getProp<T, K extends keyof T>( obj: T , key: K ): string {
     let oType = typeof  obj[key] as string
-    if ( oType === 'object' ) {
+    if ( oType === 'object' || oType === 'function' ) {
         oType = inspectObject(obj[key] as Object).toString() as string
     }
     return oType
@@ -119,8 +125,7 @@ export function getObjectTypes<T>(  name: string, obj: T  ): Object {
                 else 
                     p.entry.properties[key] =  { 
                         type: propType
-                    }
-                // if (  ! p.isArray && propType !== null && propType !==  'undefined' ) p.entry.required.push( key )              
+                    }            
             }
         }
     }
