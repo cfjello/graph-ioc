@@ -20,7 +20,7 @@ export class StoreIterator<T> implements Iterator<T>{
         return ! _.isUndefined(obj) && typeof obj[Symbol.iterator] === 'function';
     }
 
-    next(): IteratorResult<any> {
+    next(): IteratorResult<T> {
         let done    = false 
         let value   = undefined
         let idx     = 0 
@@ -38,24 +38,23 @@ export class StoreIterator<T> implements Iterator<T>{
             }
         } while ( !done && _.isUndefined( value ) ) // Go past deleted entries
 
-        return { value: [ idx++ , value] , done: done }
+        return { value: [ idx++ , value as T] , done: done } as IteratorResult<T>
     }
 
-    /*
-    static getEntries( value: any ) : IterableIterator<any> {
+    static getEntries<E>( _value: Iterable<any> | IteratorResult<any> | any ): IterableIterator<E> | undefined {
         try {
-            if ( this.isIterable(value))
-                return (value as unknown as any )!.entries() as IterableIterator<any>
+            let value = _.isUndefined( _value.value ) ? _value : _value.value[1]
+            if ( this.isIterable(value) )
+                return (value)!.entries() as IterableIterator<E>
             else
-                throw new CxError(__filename, 'StoreIterator.getEntries()', 'STORE-0014', `Object is not iterable`,)
+                return undefined
         }
         catch ( err ) {
             throw new CxError(__filename, 'StoreIterator.getEntries()', 'STORE-0015', `Cannot return iterable entries due to: ${err}`, err)
         }
     }
-    */
 
-    reset() {
-        this.indexCounter = 0
+    reset( indexCounter: number = 0) {
+        this.indexCounter = indexCounter
     }
 }

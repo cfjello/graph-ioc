@@ -171,21 +171,23 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
         name: '02 - StoreIterator: getEntries() should return all entries object that supports next()', 
         fn: async () => {
             let storeObj  = itor2.next() as IteratorResult<FtpFetchObjectType[]> // Fetch the first published object
-            let entries = storeObj.value[1].entries()            // The fetched object is iterable
-
+            // let entries = storeObj.value[1].entries()            // The fetched object is iterable
+            let entries = StoreIterator.getEntries<FtpFetchObjectType>( storeObj )
             // console.log(`VALUE LENGTH: ${storeObj.value.length}`)
-        
-            let done = false
-            while ( ! done ) {
-                let obj = entries.next() as IteratorResult<FtpFetchObjectType> 
-                // console.log(obj)
 
-                done = obj.done as boolean
-                if ( ! done ) {
-                    let value: FtpFetchObjectType  = obj.value[1]
-                    expect(value.ftpServer).toBeDefined()
-                    expect(value.ftpPath).toBeDefined()
-                    expect(value.fileName.length ).toEqual(11) 
+            if ( ! _.isUndefined( entries ) ) {
+                let done = false
+                while ( ! done ) {
+                    let obj = entries!.next() as IteratorResult<FtpFetchObjectType> 
+                    // console.log(obj)
+
+                    done = obj.done as boolean
+                    if ( ! done ) {
+                        let value: FtpFetchObjectType  = obj.value[1]
+                        expect(value.ftpServer).toBeDefined()
+                        expect(value.ftpPath).toBeDefined()
+                        expect(value.fileName.length ).toEqual(11) 
+                    }
                 }
             }
         },

@@ -150,15 +150,17 @@ export let releaseJob = ( jobId: number) => {
  * @param actionName Name of the action to be removed
  * @return void Promise
  */
-export let removeAction = async( actionName: string ): Promise<void> => {
-    //
-    // TODO: Handle multiple locks (write read ...)
-    //
-    if ( store.isRegistered(actionName) ) {
-        await store.unregister(actionName)
+export let removeAction = async ( actionName: string ): Promise<void> => {
+    try {
+        if ( store.isRegistered(actionName) ) { // Swarm instances does not have own store names
+            await store.unregister(actionName)
+        }
         graph.removeNode(actionName)
         actions.delete(actionName)
         initCounts.delete(actionName)
+    }   
+    catch(err) {
+        throw new CxError(__filename, 'removeAction()', 'CTRL-0013', `removeAction for ${actionName} failed.`, err)
     }
 }
 

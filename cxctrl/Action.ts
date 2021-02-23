@@ -58,6 +58,15 @@ export abstract class Action<S> {
     // member functions 
     //
     /**
+     * Get the current jobId for this object
+     * 
+     * @return number The jobId if exists, otherwise -1
+     */
+    getJobId(): number {
+        return  _.isUndefined(this.currActionDesc) ? -1 : this.currActionDesc.jobId
+    }
+    
+    /**
      * Set the dependencies of this action
      * 
      * @param args An array of name dependencies for this action instance
