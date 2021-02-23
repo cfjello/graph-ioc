@@ -1,5 +1,5 @@
 import { $plog, _ } from '../../cxutil/mod.ts'
-import { ActionConfigType, MetaType, StateKeys } from '../interfaces.ts'
+import { ActionConfigType } from '../interfaces.ts'
 
 export function action<S>( config: ActionConfigType<S> ) {
     return function <T extends { new(...args: any[]): {} }>(constructor: T) { 
@@ -27,7 +27,7 @@ export function action<S>( config: ActionConfigType<S> ) {
                 // 2) not 1) and the configuration is different from the current state ( ~ we have inheritance )
                 //
                 if ( instance.stateInit === false && ( config.state !== instance.state ) ) {
-                    instance.state = _.merge( _.cloneDeep( config.state ), { jobId: -1, taskId: -1 } ) 
+                    instance.state = _.cloneDeep( config.state ) 
                 }
                 return instance;
             }

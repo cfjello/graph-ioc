@@ -1,6 +1,7 @@
 import { CxStore }  from "../mod.ts"
 import { expect } from 'https://deno.land/x/expect/mod.ts'
 
+{
 let store = new CxStore()
 
 class NameAndAge {
@@ -9,7 +10,7 @@ class NameAndAge {
     nameAndAge () { console.log( JSON.stringify(this.state)) }
 }
 
-type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
+type C_Type = { f1: string, f2: string }
 
     Deno.test({
         name: 'Store: It should intialize the store object', 
@@ -24,7 +25,7 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
     Deno.test( {
         name: 'Store: It should add to the store object', 
         fn: async () => {
-            let context  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
+            let context  = { f1: 'field_1', f2: 'field_2' }
             await store.register('testContext', context )
             let storeId =  store.getStoreId('testContext')
             expect(storeId).toBeDefined()
@@ -45,11 +46,11 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
             expect( state.get('testContext') ).toBeDefined()
             expect(store.size()).toEqual(1)
 
-            let context2: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
+            let context2: C_Type  = { f1: 'field_1', f2: 'field_2' }
             await store.register('testContext2', context2)
             expect(store.size()).toEqual(2)
         
-            let context3: C_Type  = { f1: 'field_1', f2: 'field_2', jobId: -1 , taskId: -1 }
+            let context3: C_Type  = { f1: 'field_1', f2: 'field_2' }
             await store.register('testContext3', context3)
             expect(store.size()).toEqual(3)
         },
@@ -135,3 +136,4 @@ type C_Type = { f1: string, f2: string, jobId: number, taskId: number }
         sanitizeResources: false,
         sanitizeOps: false
     })
+}

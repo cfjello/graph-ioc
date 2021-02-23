@@ -1,9 +1,24 @@
 import { $log } from './mod.ts'
 import { _ } from '../cxutil/lodash.ts'
+import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
+
+
+export class dirInfo {
+    private ___dirname: string = "" // Never used
+    public static get __dirname(): string {
+        return path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
+    }
+
+    private ___filename: string = ""  // Never used
+    public static get __filename(): string {
+        return new URL('', import.meta.url).pathname
+    }
+}
+
 //
 // Error Handler
 //
-interface customErrorIntf  {
+export interface CustomErrorIntf  {
     file:       string,
     func:       string,
     code:       string,
@@ -12,7 +27,7 @@ interface customErrorIntf  {
     stack?:     string ,
 }
 
-export class CxError implements customErrorIntf  {
+export class CxError implements CustomErrorIntf  {
     public errChain: CxError[] = [] 
     public file: string = ''
     constructor(
@@ -50,6 +65,7 @@ export class CxError implements customErrorIntf  {
                 if ( _.isUndefined( this.stack ) && ! _.isUndefined( origCxErr.stack ) ) {
                     this.stack = origCxErr.stack
                 }
+                this.logError()
             }
         }
 

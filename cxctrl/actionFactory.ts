@@ -3,11 +3,6 @@ import { Action, bootstrap, injectStubs } from "../cxctrl/mod.ts"
 import { ActionConfigType } from '../cxctrl/interfaces.ts'
 import { _ } from "../cxutil/mod.ts"
 
-// deno-lint-ignore no-explicit-any
-// export type Constructor<T = unknown> = new (...args: any[]) => T;
-
-
-
 export async function actionFactory<S>(name: string, state: S, stubs: string[] = ['main']): Promise<any> {
     const funcName = stubs[0]
     //

@@ -15,8 +15,8 @@ export async function bootstrap<T,C>( Type: Constructor<T>, config: ActionConfig
         className: Type.prototype.constructor.name === 'FACTORY_CLASS' ? config.name : Type.prototype.constructor.name 
     } as MetaType
 
-    if ( instance.stateInit === false && ! _.isEqual(_.merge( config.state, { jobId: -1, taskId: -1 } ), instance.state ) ) {
-        instance.state = _.merge( _.cloneDeep( config.state ), { jobId: -1, taskId: -1 } ) 
+    if ( instance.stateInit === false && ! _.isEqual( config.state, instance.state ) ) {
+        instance.state = _.cloneDeep( config.state )
     }
 
     try { 

@@ -1,5 +1,12 @@
 import {Action} from "./Action.ts"
 
+export type NodeConfiguration = {
+    jobThreshold: number,
+    swarmSeed: number,
+    swarmMax:  number
+}
+
+
 export class ActionDescriptor {
     constructor ( 
         public rootName:   string               = "",
@@ -14,6 +21,7 @@ export class ActionDescriptor {
         public ran:        boolean              = false,
         public success:    boolean              = false,
         // public type:       string               = "desc",
+        public nodeConfig?:   NodeConfiguration,
         public promise: Promise<unknown> | undefined = undefined  
       ) {      
     }
@@ -44,5 +52,6 @@ export interface ConfigMetaType {
 
 export type ActionConfigType<S> = ConfigMetaType & { state:   S }
 
-export type MetaType = ConfigMetaType & { className?: string, funcName?: string, callCount:  number }
+export type MetaType = ConfigMetaType & { callCount:  number, className?: string, funcName?: string, swarmName?: string , swarmChildren?: string[]}
+
 

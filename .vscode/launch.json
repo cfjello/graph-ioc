@@ -10,7 +10,7 @@
             "request": "launch",
             "cwd": "${workspaceFolder}\\cxctrl",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
+            "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
             "port": 9229,
             "outputCapture": "std",
             "console": "integratedTerminal"
@@ -20,7 +20,7 @@
             "type": "node",
             "request": "launch",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["test", "--inspect-brk",  "-A", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
+            "runtimeArgs": ["test", "--inspect-brk",  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
             "port": 9229,
             "outputCapture": "std",
             "console": "integratedTerminal"

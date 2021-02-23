@@ -1,11 +1,8 @@
-import { StateMetaData } from "./interfaces.ts"
-import { ActionDescriptorFactory } from "../cxctrl/Ctrl.ts"
-import { ActionDescriptor, StateKeys } from "../cxctrl/interfaces.ts"
+import { StateMetaData, StoreEntry, IterateIndexMap } from "./interfaces.ts"
+import { ActionDescriptor } from "../cxctrl/interfaces.ts"
+import { ActionDescriptorFactory } from "../cxctrl/actionDescFactory.ts"
 import { storeIdSeq } from "./generators.ts"
-import cloneDeep    from "https://raw.githubusercontent.com/lodash/lodash/master/cloneDeep.js"
-import isObject     from "https://raw.githubusercontent.com/lodash/lodash/master/isObject.js"
-import isUndefined  from "https://raw.githubusercontent.com/lodash/lodash/master/isUndefined.js"
-// import isEqual      from "https://raw.githubusercontent.com/lodash/lodash/master/eqDeep.js"
+import { _ } from "../cxutil/mod.ts"
 import { Mutex, $log, ee, CxError } from "../cxutil/mod.ts"
 
 const __filename = new URL('', import.meta.url).pathname;
@@ -16,8 +13,11 @@ export class CxStore {
      * 
      */ 
     state           = new Map<string, Map<number, any>>()
-    index           = new Map<string, Map<string, any>>()
     meta            = new Map<string, StateMetaData>()
+    index           = new Map<string, Map<string, Array<number>>>()
+    // iterators       = new Map<string, IterateIndexMap>()
+    indexMeta       = new Map<string, {prefix: string, selector: Function}>()
+
     updIdx: number  = 0
     config          = new Map<string,any>()
 
@@ -26,33 +26,25 @@ export class CxStore {
      * @template T The type of the object
      * @param key The store name of the object
      * @param objRef A reference to the object to be stored
-     * @param threshold The number of entries in the immutable collection to keep ( less than 2 for unlimited, otherwise the number given )
      * @returns The storeId of the object 
      */
-    async register<T> (
-        key: string, 
-        objRef: T & StateKeys, 
-        threshold: number = -1, 
-        actiondesc: ActionDescriptor | undefined = undefined
-        ): Promise<number> {       
+    async register<T> ( 
+        key: string, objRef: T, ad: ActionDescriptor | undefined = undefined, init: boolean = true ): Promise<number> {       
+        let storeId: number = -1
+        if ( init ) 
+            storeId = this.set( key, objRef, ad ) 
+        else 
+            storeId = this.initStoreKey<T>(key).storeId
 
-            return this.set( key, objRef , threshold, actiondesc )
+        return Promise.resolve(storeId)
     } 
-
-    setThreshold( key: string, _threshold: number ) : number {
-        let threshold = _threshold < 2 ? -1 : _threshold
-        if ( ! this.meta.has(key) ) 
-            throw new CxError(__filename, 'setThreshold()', 'STORE-0001', `Cannot find meta data on the store object named: ${key}`)
-
-        this.meta.get(key)!.threshold = threshold
-        return threshold
-    }
 
     async unregister (key: string): Promise<boolean> {
         if ( this.state.has(key) ) { 
             await Mutex.doAtomic( key, async () => {
                     this.state.delete(key)
                     this.meta.delete(key)
+                    // TODO: Delete from index as well
                 }) 
         }
         else 
@@ -80,20 +72,37 @@ export class CxStore {
     }
 
     /**
-     * Adds a given index identifier, e.g. a jobId to the index
+     * Adds a new index for a named store object jobId based on some named fields 
      * 
      * @param idxId    The index Id of the indexed object
      * @param prefix   The index prefix, a string to be added in front of the index id (idxId)
      * @return string  The index identifier
      */
+    createIndex<T>( name: string, prefix: string, selector: Function): void {
+        if ( this.indexMeta.has( prefix ) ) { 
+            throw new CxError(__filename, 'store.createIndex()', 'STORE-0011', `Duplicate index prefix: ${prefix}, when trying to create index`)
+        }
+        else if ( ! this.state.has(name) ) {
+            throw new CxError(__filename, 'store.createIndex()', 'STORE-0012', `Index target state object: ${name}, does not exist in the Store`)
+        }
+        this.indexMeta.set(name, { prefix: prefix, selector: selector } )
+    }
+
+    /**
+     * Adds a given index identifier if it does not exixt, e.g. a jobId to the index
+     * 
+     * @param idxId    The index Id of the indexed object
+     * @param prefix   The index prefix, a string to be added in front of the index id (idxId)
+     * @return string  The index identifier
+    */
     addIndexKey( idxId: number, prefix: string = 'J' ): string {
         let idxKey: string = prefix + idxId
         if ( ! this.index.has( idxKey ) ) { 
-            this.index.set( idxKey , new Map<string,any>() ) 
+            this.index.set( idxKey , new Map<string,Array<number>>() ) 
         }
         return idxKey   
     }
-
+  
     /**
      * Determines whether index object exists for a given index Id
      * 
@@ -115,17 +124,13 @@ export class CxStore {
      * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
      * @return void
      */
-    setIndexId (key: string, idxId:number, prefix: string = 'J', storeId: number = -1 ): void {
-        let idxKey: string = prefix + idxId
-        if ( ! this.index.has( idxKey) ) {
-            throw new CxError(__filename, 'setIndexId()', 'STORE-0003', `Missing index Id: ${idxKey} in store index`)
+    setIndexId (key: string, idxId: number, storeId: number, prefix: string = 'J' ): void {
+        if ( ! this.hasStoreId( key , storeId ) ) {
+            throw new CxError(__filename, 'setIndexId()', 'STORE-0003', `No storeId for ${key} with storeId ${storeId} in store`)
         }
-        else {
-            if ( this.hasStoreId( idxKey , storeId ) ) 
-                this.index.get(idxKey)!.set(key, storeId )
-            else 
-                throw new CxError(__filename, 'setIndexId()', 'STORE-0004', `No storeId for ${key} with storeId ${storeId} in store`)
-        }       
+        let idxKey: string =  this.addIndexKey(idxId, prefix)
+        if ( ! this.index.get( idxKey)!.has(key) ) this.index.get(idxKey)!.set(key, [])
+        this.index.get(idxKey)!.get(key)!.push(storeId)
     }
 
      /** TODO: decide whether this function getIndexStoreId() is useful
@@ -153,21 +158,24 @@ export class CxStore {
      * @param idxId  The idxId of the indexed object
      * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
      * @return Map<string, any> A map of named objects and thier StoreIDs
-    */
-    getCollection( idxId:number, prefix: string = 'J' ) : Map<string, any> {
+    
+   
+    getCollection( idxId:number, prefix: string = 'J', dataOnly: boolean = true ) : Map<string, any> {
         let idxKey: string = prefix + idxId
         let collection = new Map<string, any>()
         try {
             let debugDummy = this.index.get(idxKey)!
-            this.index.get(idxKey)!.forEach( ( storeId, key ) => {
-                collection.set( key, this.get(key, storeId) )
+            this.index.get(idxKey).forEach( ( storeId, key ) => {
+                this.get(key, storeId, dataOnly)
+                collection.set( key, this.get(key, storeId, dataOnly) )
             })
             return collection
         }
         catch(err) {
-            throw new CxError(__filename, 'getIndexStoreIDs', 'STORE-0006', `Cannot fetch Collection storeIDs`, err)
+            throw new CxError(__filename, 'getCollection()', 'STORE-0006', `Cannot fetch Collection storeIDs`, err)
         }
     }
+*/
 
     /**
      * Gets the object-state for a named indexed object of type S
@@ -177,22 +185,22 @@ export class CxStore {
      * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
      * @return S | undefined if the indexed object does not exist
      */
-    getIndexState<S>(key: string, idxId: number, prefix: string = 'J' ): S | undefined {
+    getIndexState<S>(key: string, idxId: number, prefix: string = 'J' ): StoreEntry<S>[] | undefined {
         let idxKey: string = prefix + idxId
         if ( this.hasIndexId(key, idxId) ) {
             let storeId = this.index.get(idxKey)!.get(key)
-            return this.get(key, storeId ) as S
+            return this.get(key) as StoreEntry<S>[]
         }
         else
             return undefined
     }
    
     /**
-     * Get store id of cx store
+     * Get current last store id for an entry store
      * 
      * @param key The name of the stored object
      * @param storeId The number of the version to retrieve, -1 defaulting to the most recent one
-     * @return The storeId index
+     * @return The storeId index and -1 if not existing
      */
     getStoreId( key: string, storeId: number = -1 ) : number {
         let idx = storeId
@@ -218,10 +226,26 @@ export class CxStore {
      * @param [getRefOnly] If set to true a reference is returned  otherwise a deep copy (the default)
      * @returns A typed deep copy of the stored object or a reference if parameter getRefOnly is set to true, the latter should be retrieved as readonly 
      */
-    get<T>( key: string, _storeId:number = -1, getRefOnly: boolean = false ):  T & StateKeys {
+    get<T>( key: string, _storeId:number = -1, dataOnly: boolean = true ): T | StoreEntry<T> {
             let storeId = this.getStoreId( key, _storeId )
-            return this.state.get(key)!.get(storeId) as  T & StateKeys
+            if ( dataOnly )
+                return this.state.get(key)!.get(storeId).data as  T
+            else
+                return this.state.get(key)!.get(storeId) as StoreEntry<T> 
+    }
+
+
+    initStoreKey<T>( key: string, storeId: number = -1): StateMetaData {
+        //
+        // Do we have a new key? If so we create the meta info
+        //
+        if ( ! this.state.has( key ) )  {
+            this.state.set( key, new Map<number,T>() ) 
         }
+
+        this.meta.set( key, { storeId: storeId, prevStoreId: -1, prevJobId: -1 , prevTaskId: -1 } as StateMetaData )
+        return this.meta.get(key)!   
+    }
 
     /**
      * Saves a deep copy of an object to the Store
@@ -231,71 +255,42 @@ export class CxStore {
      * @param threshold The number of entries in the immutable collection to keep ( less than 2 for unlimited, otherwise the number given )
      * @returns The storeId of the object 
      */
-    async set<S>( key: string, objRef: S & StateKeys, threshold: number = -1, _actionDesc: ActionDescriptor | undefined  ): Promise<number>  {
-
-            if (  isUndefined( key) ) throw new CxError(__filename, 'store.set()', 'STORE-0008', `Invalid key: ${key}`)   
-            if ( !isObject( objRef) ) throw new CxError(__filename, 'store.set()', 'STORE-0009', `Object must be passed to the store`)
+    set<T>( key: string, objRef: T, _actionDesc: ActionDescriptor | undefined  ): number  {
+        let newMetaInfo: StateMetaData
+        let storeId    = storeIdSeq().next().value as number
+        if (   _.isUndefined( key) ) throw new CxError(__filename, 'store.set()', 'STORE-0008', `Undefined store key: ${key}`)   
+        if ( ! _.isObject( objRef) ) throw new CxError(__filename, 'store.set()', 'STORE-0009', `Object must be passed to the store`)
+        try {  
             //
             // If the ActionDescriptor is not initialized ( that is if this was called directly ) then initialize
             // 
-            let actionDesc: ActionDescriptor = isUndefined(_actionDesc) ? ActionDescriptorFactory(key): _actionDesc!
-            let jobKey: string =  this.addIndexKey( actionDesc.jobId, 'J' )
+            let ad: ActionDescriptor = _.isUndefined(_actionDesc) ? ActionDescriptorFactory(key): _actionDesc!
             //
             // Do we have a new key? If so we create the meta info
             //
-            if ( !this.state.has( key ) )  {
-                let thresholdSize = threshold < 2 ? -1 : threshold
-                this.meta.set( key, { storeId: -1, prevStoreId: -1, prevJobId: -1 , prevTaskId: -1, threshold: thresholdSize } as StateMetaData )
-                this.state.set( key, new Map<number,any>() ) 
-            }
+            let metaInfo: StateMetaData = this.initStoreKey( key, storeId ) 
             //
-            // Now prepare to insert the object
-            // 
-            let metaInfo = this.meta.get(key)!     
-            
-            let newMetaInfo: StateMetaData = { 
-                storeId:     storeIdSeq().next().value as number, 
-                prevStoreId: metaInfo.storeId, 
-                prevJobId:   actionDesc.jobId , 
-                prevTaskId:  actionDesc.taskId, 
-                threshold:   metaInfo.threshold
-            } 
-
-            let lock     = `${key}_write`
-            await Mutex.doAtomic( lock, async () => {
-                //
-                // Build and Store the data
-                //
-                // update the calling objRef with the new keys
-                //
-                objRef.jobId   = actionDesc.jobId
-                objRef.taskId  = actionDesc.taskId
-                let objClone: any = Object.freeze( cloneDeep( objRef ) )
-                try {       
-                    //
-                    // Store the cloned data
-                    //
-                    this.state.get(key)!.set( newMetaInfo.storeId , objClone )
-                    //
-                    // store the job-index reference
-                    //
-                    this.index.get(jobKey)!.set( key, newMetaInfo.storeId ) 
-                    //
-                    // set the updated metaData
-                    //
-                    this.meta.set( key, newMetaInfo )
-                }
-                catch(err) {
-                    //
-                    // Roll back the objRef update
-                    //
-                    objRef.jobId   = newMetaInfo.prevJobId
-                    objRef.taskId  = newMetaInfo.prevTaskId
-                    throw new CxError(__filename, 'store.set()', 'STORE-0010', `failed to store data for ${key}`, err)
-                }
-            }) 
-            return Promise.resolve(newMetaInfo.storeId)
+            // Build and Store the data
+            //
+            let objClone: T = Object.freeze( _.cloneDeep( objRef ) )
+            //
+            // Store the cloned data
+            //
+            this.state.get(key)!.set( storeId , { data: objClone as T, meta: { jobId: ad.jobId, taskId: ad.taskId } } as StoreEntry<T> )
+            //
+            // store the job-index reference
+            //
+            this.setIndexId(key, ad.jobId, storeId )
+            //
+            // set the updated metaData with the current storeId
+            //
+            this.meta.set( key, metaInfo )
         }
+        catch(err) {
+            throw new CxError(__filename, 'store.set()', 'STORE-0010', `failed to store data for ${key}`, err)
+        }
+        return storeId
+    }
 
     /**
      * Is the object key/name exists in the store?

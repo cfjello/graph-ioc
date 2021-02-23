@@ -66,7 +66,7 @@ class ObjR  extends Action<R> {
   instS.main() // This is now dirty
   // console.log('-----------------------')
   await ctrl.runTarget('ObjP')
-  let collection = ctrl.store.getCollection( instP.state.jobId )
+  let collection = ctrl.store.getCollection( instP.currActionDesc.jobId, undefined, false )
 
   Deno.test( {
     name: '04 - After runTarget() the collection should be populated', 
@@ -74,7 +74,7 @@ class ObjR  extends Action<R> {
         expect( collection.size).toEqual(4)
         collection.forEach( (obj, key) => {
             expect(obj).toBeDefined()
-            expect( instP.state.jobId >= obj.jobId ).toBeTruthy()
+            expect( instP.currActionDesc.jobId >= obj.meta.jobId ).toBeTruthy()
         })
     },
     sanitizeResources: false,
@@ -140,7 +140,7 @@ class ObjR1  extends Action<R> {
   instS1.main() // This is now dirty
  
   await ctrl.getPromiseChain('ObjP1').run()
-  let collection1 = ctrl.store.getCollection( instP1.state.jobId )
+  let collection1 = ctrl.store.getCollection( instP1.currActionDesc.jobId, undefined, false )
 
   Deno.test( {
     name: '04 - After run PromiseChain the collection should be populated', 
@@ -148,7 +148,7 @@ class ObjR1  extends Action<R> {
         expect( collection.size).toEqual(4)
         collection.forEach( (obj, key) => {
             expect(obj).toBeDefined()
-            expect( instP1.state.jobId >= obj.jobId ).toBeTruthy()
+            expect( instP1.currActionDesc.jobId >= obj.meta.jobId ).toBeTruthy()
         })
     },
     sanitizeResources: false,
