@@ -55,29 +55,47 @@ Deno.test('Generator functions should return incremented numbers', () => {
     let nameAndAge = await new NameAndAge().register()
     // console.log(`NAA constructor name: ${nameAndAge2.constructor.name}`)
 
-    Deno.test('01 - Action Object should register under the default name', () => {
+    Deno.test({
+      name: '01 - Action Object should register under the default name', 
+      fn: () => {
         let boolRes = ctrl.store.isRegistered(nameAndAge.meta.name)
         expect(boolRes).toBeTruthy()
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
-    Deno.test('01 - It should create an Store object entry', () => {
-        let state = ctrl.getState(nameAndAge.meta.name);
-        expect(state).toBeDefined()
-        // console.log(inspect(state))
-        expect(state.age).toEqual(85)
+    Deno.test({
+      name: '01 - It should create an Store object entry', 
+      fn: () => {
+          let state = ctrl.getStateData(nameAndAge.meta.name) as A
+          expect(state).toBeDefined()
+          expect(state.age).toEqual(85)
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     });
 
-    Deno.test('01 - It should contain a Graph object', () => {
+    Deno.test({
+      name: '01 - It should contain a Graph object', 
+      fn: () => {
         expect(nameAndAge.meta.name).toEqual('NameAndAge')
         expect(ctrl.graph).toBeDefined()
         expect(ctrl.graph.getNode(nameAndAge.meta.name)).toBeDefined()
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     });
 
-    Deno.test ('01 - Ctrl object should be able to remove Action', async () => {
+    Deno.test ({
+      name: '01 - Ctrl object should be able to remove Action', 
+      fn: async () => {
       await ctrl.removeAction("NameAndAge")
       expect(ctrl.actions.has("NameAndAge")).toBeFalsy()
       expect(ctrl.store.isRegistered("NameAndAge")).toBeFalsy()
-      // expect(Ctrl.graph.hasNode("NameAndAge")).toBeFalsy()
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     }) 
 
     @action<F>({
@@ -101,20 +119,30 @@ Deno.test('Generator functions should return incremented numbers', () => {
   
   // console.log(`NAA constructor name: ${nameAndAge2.constructor.name}`)
 
-  Deno.test('01 - It can set state parameters', async () => {
-      try {
-        let nameAndAge = await new NameAndAge1('Fido', 5).register()
-      }
-      catch(e) {
-        expect(e).toEqual('No Problemo')
-      } 
+  Deno.test({
+    name: '01 - It can set state parameters', 
+    fn: async () => {
+        try {
+          let nameAndAge = await new NameAndAge1('Fido', 5).register()
+        }
+        catch(e) {
+          expect(e).toEqual('No Problemo')
+        } 
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
   })
 
-  Deno.test('01 - The action state parameters are not overwritten', async () => {
-    let nameAndAge = await new NameAndAge1('Fido', 5).register()
-    expect(nameAndAge.state.name).toEqual('Fidel')
-    expect(nameAndAge.state.age).toEqual(85)
-    expect(nameAndAge.state.sex).toEqual('yoda')
+  Deno.test({
+    name: '01 - The action state parameters are not overwritten', 
+    fn: async () => {
+        let nameAndAge = await new NameAndAge1('Fido', 5).register()
+        expect(nameAndAge.state.name).toEqual('Fidel')
+        expect(nameAndAge.state.age).toEqual(85)
+        expect(nameAndAge.state.sex).toEqual('yoda')
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
   }) 
  
 //
@@ -138,30 +166,44 @@ Deno.test('Generator functions should return incremented numbers', () => {
     class ObjC  extends ObjA {}  
     let instC = await new ObjC().register()
     
-    Deno.test('01 - Graph dependencies should preserve order', () => {
-        let dependencies = instC.setDependencies('ObjA','ObjB')
-        expect(dependencies).toEqual(['ObjA', 'ObjB'])
+    Deno.test({
+      name: '01 - Graph dependencies should preserve order', 
+      fn: () => {
+          let dependencies = instC.setDependencies('ObjA','ObjB')
+          expect(dependencies).toEqual(['ObjA', 'ObjB'])
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
   
-    Deno.test('01 - ctrl.getActionsToRun should return the run list for ObjC', () => {
+    Deno.test({
+      name: '01 - ctrl.getActionsToRun should return the run list for ObjC', 
+      fn: () => {
         let dep = ctrl.getActionsToRun('ObjC')
         expect(dep.size).toEqual(3)
         let storeId = ctrl.store.getStoreId('ObjB')
         let B = dep.get('ObjB')!
-        expect(B.name).toEqual('ObjB')
+        expect(B.storeName).toEqual('ObjB')
         expect(B.ident).toEqual( '01.02')
         expect(B.storeId).toEqual( storeId )
         expect(B.children.length).toEqual(0)
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
-    Deno.test('01 - ctrl.getActionsToRun should return the same jobId for all objects', () => {
-      let actionsToRun = ctrl.getActionsToRun('ObjC')
-      let prevJobId = -1
-      actionsToRun.forEach( (actionDesc, key) => {
-        expect(prevJobId === -1 || ( prevJobId === actionDesc.jobId ) ).toBeTruthy()
-        // console.log(`Object: ${key}, JobId: ${actionDesc.jobId}`)
-        prevJobId = actionDesc.jobId
-      })
+    Deno.test({
+      name: '01 - ctrl.getActionsToRun should return the same jobId for all objects', 
+      fn: () => {
+        let actionsToRun = ctrl.getActionsToRun('ObjC')
+        let prevJobId = -1
+        actionsToRun.forEach( (actionDesc, key) => {
+          expect(prevJobId === -1 || ( prevJobId === actionDesc.jobId ) ).toBeTruthy()
+          prevJobId = actionDesc.jobId
+        })
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
   
     @action<D>({ 
@@ -172,27 +214,30 @@ Deno.test('Generator functions should return incremented numbers', () => {
     let instD = await new ObjD().register()
   
   
-    Deno.test('01 - ctrl.getActionsToRun should return a new changed run list', () => {
-      // instC.setDependencies('ObjA','ObjB')
-      instB.setDependencies('ObjD')
-      let  dep = ctrl.getActionsToRun('ObjC')
-      // console.log( 'DEBUG 2:' + inspect(dep) )
-      expect(dep.size).toEqual(4)
-      let storeId = ctrl.store.getStoreId('ObjB')
-      let B = dep.get('ObjB')!
-      // console.log( B )
-      expect(B.rootName).toEqual('ObjC')
-      expect(B.name).toEqual('ObjB')
-      expect(B.ident).toEqual( '01.02')
-      expect(B.storeId).toEqual( storeId )
-      expect(B.children).toEqual(['ObjD'])
- 
-      let C = dep.get('ObjC')!
-      storeId = ctrl.store.getStoreId('ObjC')
-      expect(C.rootName).toEqual('ObjC')
-      expect(C.name).toEqual('ObjC')
-      expect(C.storeId).toEqual( storeId )
-      expect(C.children).toEqual( [ 'ObjB', 'ObjA' ] )
+    Deno.test({
+      name: '01 - ctrl.getActionsToRun should return a new changed run list', 
+      fn: () => {
+          instB.setDependencies('ObjD')
+          let  dep = ctrl.getActionsToRun('ObjC')
+          expect(dep.size).toEqual(4)
+          let storeId = ctrl.store.getStoreId('ObjB')
+          let B = dep.get('ObjB')!
+
+          expect(B.rootName).toEqual('ObjC')
+          expect(B.storeName).toEqual('ObjB')
+          expect(B.ident).toEqual( '01.02')
+          expect(B.storeId).toEqual( storeId )
+          expect(B.children).toEqual(['ObjD'])
+    
+          let C = dep.get('ObjC')!
+          storeId = ctrl.store.getStoreId('ObjC')
+          expect(C.rootName).toEqual('ObjC')
+          expect(C.storeName).toEqual('ObjC')
+          expect(C.storeId).toEqual( storeId )
+          expect(C.children).toEqual( [ 'ObjB', 'ObjA' ] )
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     }) 
 
     //
@@ -223,7 +268,7 @@ class ObjP3 extends Action<P> {
 @action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ  extends Action<Q> {
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS');
       this.state.name = stateS.name + "," + this.state.name
       this.publish()
       return true
@@ -232,7 +277,7 @@ class ObjQ  extends Action<Q> {
 @action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ1  extends Action<Q> { 
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS1');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS1');
       this.state.name = stateS.name + "," + this.state.name
       this.publish()
       return true
@@ -242,7 +287,7 @@ class ObjQ1  extends Action<Q> {
 @action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ2  extends Action<Q> { 
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS2');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS2');
       this.state.name = stateS.name + "," + this.state.name
       this.publish()
       return true
@@ -252,7 +297,7 @@ class ObjQ2  extends Action<Q> {
 @action( { state: {name: 'Q', age:38 }, init: true } ) 
 class ObjQ3  extends Action<Q> { 
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS3');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS3');
       this.state.name = `Q3:[${stateS.name}]`
       this.publish()
       return true
@@ -262,8 +307,8 @@ class ObjQ3  extends Action<Q> {
 @action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR  extends Action<R> { 
     ctrl():boolean {
-      let stateP: Readonly<P> = ctrl.getState("ObjP");
-      let stateQ: Readonly<Q> = ctrl.getState("ObjQ");
+      let stateP: Readonly<P> = ctrl.getStateData("ObjP");
+      let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ");
       this.state.name = stateP.name + "," + stateQ.name + "," + this.state.name
       this.publish()
       return true
@@ -273,8 +318,8 @@ class ObjR  extends Action<R> {
 @action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR1  extends Action<R> { 
   ctrl():boolean {
-    let stateP: Readonly<P> = ctrl.getState("ObjP1");
-    let stateQ: Readonly<Q> = ctrl.getState("ObjQ1");
+    let stateP: Readonly<P> = ctrl.getStateData("ObjP1");
+    let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ1");
     this.state.name = stateP.name + "," + stateQ.name + "," + this.state.name
     this.publish()
     return true
@@ -284,8 +329,8 @@ class ObjR1  extends Action<R> {
 @action( { state: {name: 'R', age:38 }, init: true } ) 
 class ObjR2  extends Action<R> { 
   ctrl():boolean {
-    let stateP: Readonly<P> = ctrl.getState("ObjP2");
-    let stateQ: Readonly<Q> = ctrl.getState("ObjQ2");
+    let stateP: Readonly<P> = ctrl.getStateData("ObjP2");
+    let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ2");
     this.state.name = stateP.name + "," + stateQ.name + "," + this.state.name
     this.publish()
     return true
@@ -296,8 +341,8 @@ class ObjR2  extends Action<R> {
 class ObjR3  extends Action<R> { 
   ctrl():boolean {
     // $log.debug(`Into OBJC3 ctrl()`)
-    let stateP: Readonly<P> = ctrl.getState("ObjP3");
-    let stateQ: Readonly<Q> = ctrl.getState("ObjQ3");
+    let stateP: Readonly<P> = ctrl.getStateData("ObjP3");
+    let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ3");
     this.state.name = `R3:[${stateP.name},${stateQ.name}]`
     this.publish()
     return true

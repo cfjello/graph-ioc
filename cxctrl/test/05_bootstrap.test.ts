@@ -60,7 +60,7 @@ class ObjP5 extends Action<P> {
 
 class ObjQ5  extends Action<Q> { 
     ctrl():boolean {
-        let stateS: Readonly<S> = ctrl.getState('ObjS5');
+        let stateS: Readonly<S> = ctrl.getState('ObjS5', -1, true) as S
         this.state.name = `Q5:[${stateS.name}]`
         this.publish()
         return true
@@ -70,8 +70,8 @@ class ObjQ5  extends Action<Q> {
 class ObjR5  extends Action<R> { 
     ctrl():boolean {
         // $log.debug(`Into OBJC5 ctrl()`)
-        let stateP: Readonly<P> = ctrl.getState("ObjP5");
-        let stateQ: Readonly<Q> = ctrl.getState("ObjQ5");
+        let stateP: Readonly<P> = ctrl.getStateData("ObjP5")
+        let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ5")
         this.state.name = `R5:[${stateP.name},${stateQ.name}]`
         this.publish()
         return true
@@ -141,18 +141,15 @@ class ObjS5  extends Action<S> {
         instS5.state.age = 199
         instS5.publish()
         await ctrl.runTarget('ObjQ5') // This will now be dirty
-        let nameR5 = ObjR5.name
-        let actionsToRun = ctrl.getActionsToRun('ObjP5')
         let runChain: RunIntf = ctrl.getPromiseChain('ObjR5', false)
         await runChain.run()
-        let jobName = runChain.getEventName()
         let tasks: Map<string, ActionDescriptor>   = runChain.getActionsToRun()!
 
        tasks.forEach((task: ActionDescriptor ,idx) => {
-         if (task.name == "ObjP5") expect(task.ran).toBeFalsy()
-         if (task.name == "ObjS5") expect(task.ran).toBeFalsy()
-         if (task.name == "ObjQ5") expect(task.ran).toBeTruthy()
-         if (task.name == "ObjR5") expect(task.ran).toBeTruthy()
+         if (task.actionName == "ObjP5") expect(task.ran).toBeFalsy()
+         if (task.actionName == "ObjS5") expect(task.ran).toBeFalsy()
+         if (task.actionName == "ObjQ5") expect(task.ran).toBeFalsy()
+         if (task.actionName == "ObjR5") expect(task.ran).toBeTruthy()
       })
     })
 

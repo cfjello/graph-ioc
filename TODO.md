@@ -21,7 +21,8 @@
 - Store
     - Remove jobId references from Store: OK
     - remove index prefix default - NO
-    - check if index exists before creating
+    - check if index exists before creating - OK
+    - test functionality of other indexes than the job-index
     - Find some hash-freindly, but sortable, id type for jobIds - TBD
     - Also, test the creation of some other indexcies 
 - Implement the job depth based thresshold cleanup for:

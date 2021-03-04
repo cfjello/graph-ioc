@@ -43,39 +43,58 @@ import { expect }  from 'https://deno.land/x/expect/mod.ts'
 
     let empInst = await actionFactory( 'Emp' , employee, [ 'main', 'init' ] )
 
-    Deno.test ('06 - ActionFactory: Creation and naming should be correct',  async () => { 
-        expect(empInst.meta.className).toEqual('Emp')
-        expect(empInst.constructor.name).toEqual('FACTORY_CLASS')
+    Deno.test ({
+        name: '06 - ActionFactory: Creation and naming should be correct',  
+        fn: async () => { 
+            expect(empInst.meta.className).toEqual('Emp')
+            expect(empInst.constructor.name).toEqual('FACTORY_CLASS')
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
     })
 
-    Deno.test ('06 - ActionFactory: function stubs should have been injected',  async () => { 
-        expect(typeof empInst.main).toEqual('function')
-        expect(typeof empInst.init).toEqual('function')
+    Deno.test ({
+        name: '06 - ActionFactory: function stubs should have been injected',  
+        fn: async () => { 
+            expect(typeof empInst.main).toEqual('function')
+            expect(typeof empInst.init).toEqual('function')
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
     })
 
-    Deno.test ('06 - ActionFactory: function stubs can be overwritten',  async () => { 
-
-        empInst.main = function () {
-            this.update( { lastName: "noHope", email: "bob.hope@hell.com"  })
-            this.publish()
-        }
-        
-        empInst.init = function( employee: EmployeesType ) {
-            this.state = employee
-            defineStateTypes('EmployeesType', this)
-        }
-        expect(typeof empInst.main).toEqual('function')
-        expect(typeof empInst.init).toEqual('function')
+    Deno.test ({
+        name: '06 - ActionFactory: function stubs can be overwritten',  
+        fn: async () => { 
+            empInst.main = function () {
+                this.update( { lastName: "noHope", email: "bob.hope@hell.com"  })
+                this.publish()
+            }
+            
+            empInst.init = function( employee: EmployeesType ) {
+                this.state = employee
+                defineStateTypes('EmployeesType', this)
+            }
+            expect(typeof empInst.main).toEqual('function')
+            expect(typeof empInst.init).toEqual('function')
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
     })
 
-    Deno.test ('06 - ActionFactory: class variables can be added',  async () => { 
-        empInst['counter'] = 0 as number
-        empInst['show'] = function() {
-            return `counter is: ${++empInst.counter}`
-        }
-        expect(typeof empInst.counter).toEqual('number')
-        expect(++empInst.counter).toEqual(1)
+    Deno.test ({
+        name: '06 - ActionFactory: class variables can be added',  
+        fn: async () => { 
+            empInst['counter'] = 0 as number
+            empInst['show'] = function() {
+                return `counter is: ${++empInst.counter}`
+            }
+            expect(typeof empInst.counter).toEqual('number')
+            expect(++empInst.counter).toEqual(1)
 
-        expect(empInst.show()).toEqual('counter is: 2')
+            expect(empInst.show()).toEqual('counter is: 2')
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
     })
 }

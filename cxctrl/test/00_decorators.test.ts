@@ -34,23 +34,31 @@ class OA extends Action<A> {
 
 let objA = await new OA('hirs').register()
 
-Deno.test('00 - Action decorator: It should decorate and intialize an Action', () => {
-  expect(objA.state.gender).toBeDefined()
-  expect(objA.state.gender).toEqual('male')
-  expect(objA.meta.name).toBeDefined()
-  expect(objA.meta.name).toEqual('Young')
-  expect(objA.setDependencies).toBeDefined()
-  // expect(typeof objA.register).toEqual('function')
-  expect(objA.ping()).toEqual('action decorator ping() has been called')
+Deno.test({
+  name: '00 - Action decorator: It should decorate and intialize an Action', 
+  fn: () => {
+    expect(objA.state.gender).toBeDefined()
+    expect(objA.state.gender).toEqual('male')
+    expect(objA.meta.name).toBeDefined()
+    expect(objA.meta.name).toEqual('Young')
+    expect(objA.setDependencies).toBeDefined()
+    // expect(typeof objA.register).toEqual('function')
+    expect(objA.ping()).toEqual('action decorator ping() has been called')
+  },
+  sanitizeResources: false,
+  sanitizeOps: false
 })
 
-Deno.test('00 - Action decorator: Register should initialize in the Ctrl structure', () => {
-  // perf.listPerfMap()
-  expect(Ctrl.actions.has('Young')).toBeTruthy()
-  expect(Ctrl.store.get('Young')).toBeDefined()
-  let storedYoung = Ctrl.getState('Young', -1)
-  expect( storedYoung ).toEqual(objA.state)
-  // expect(true).toBeTruthy()
+Deno.test({
+  name: '00 - Action decorator: Register should initialize in the Ctrl structure', 
+  fn: () => {
+    expect(Ctrl.actions.has('Young')).toBeTruthy()
+    expect(Ctrl.store.get('Young')).toBeDefined()
+    let storedYoung = Ctrl.getState('Young', -1)
+    expect( storedYoung ).toEqual(objA.state)
+  },
+  sanitizeResources: false,
+  sanitizeOps: false
 })
 
 
@@ -70,24 +78,39 @@ class OB extends OA {
 console.log ('---------------------------------------')
 let objB = await new OB('hirs').register()
 
-    Deno.test('00 - Extended class should intialize the new Action instance', () => {
-      expect(objB.state.gender).toBeDefined()
-      expect(objB.state.gender).toEqual('female')
-      expect(objB.meta.name).toBeDefined()
-      expect(objB.meta.name).toEqual('Old')
-      expect(objB.setDependencies).toBeDefined()
-      expect(objB.ping()).toEqual('action decorator ping() has been called')
+    Deno.test({
+      name: '00 - Extended class should intialize the new Action instance', 
+      fn: () => {
+          expect(objB.state.gender).toBeDefined()
+          expect(objB.state.gender).toEqual('female')
+          expect(objB.meta.name).toBeDefined()
+          expect(objB.meta.name).toEqual('Old')
+          expect(objB.setDependencies).toBeDefined()
+          expect(objB.ping()).toEqual('action decorator ping() has been called')
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
   
-    Deno.test('00 - Extended class  should initialize in the Ctrl structure', () => {
-      expect(Ctrl.actions.has('Old')).toBeTruthy()
-      expect(Ctrl.store.get('Old')).toBeDefined()
-      expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
+    Deno.test({
+      name: '00 - Extended class  should initialize in the Ctrl structure', 
+      fn: () => {
+          expect(Ctrl.actions.has('Old')).toBeTruthy()
+          expect(Ctrl.store.get('Old')).toBeDefined()
+          expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
-    Deno.test('00 - The Parent class should not have been changed', () => {
-      expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
+    Deno.test({
+      name: '00 - The Parent class should not have been changed', 
+      fn: () => {
+          expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
 @action<A>( {
@@ -105,24 +128,38 @@ console.log ('---------------------------------------')
 let objC = await new OC('aunty').register()
 
 // describe('2nd Extended class should apply the configuration',  () => {
-  Deno.test('00 - Extended class should intialize the new Action instance', () => {
-    expect(objC.state.gender).toBeDefined()
-    expect(objC.state.gender).toEqual('trans')
-    expect(objC.meta.name).toBeDefined()
-    expect(objC.meta.name).toEqual('OverTheHill')
-    expect(objC.preferGenderName).toEqual('aunty')
-    expect(objC.setDependencies).toBeDefined()
-    expect(objC.ping()).toEqual('action decorator ping() has been called')
-    //expect (objC.preferGenderName).toBeDefined()
+  Deno.test({
+    name: '00 - Extended class should intialize the new Action instance', 
+    fn: () => {
+        expect(objC.state.gender).toBeDefined()
+        expect(objC.state.gender).toEqual('trans')
+        expect(objC.meta.name).toBeDefined()
+        expect(objC.meta.name).toEqual('OverTheHill')
+        expect(objC.preferGenderName).toEqual('aunty')
+        expect(objC.setDependencies).toBeDefined()
+        expect(objC.ping()).toEqual('action decorator ping() has been called')
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
   })
 
 
-  Deno.test('00 - 1st Extended class should initialize in the Ctrl structure', () => {
-    expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
+  Deno.test({
+    name: '00 - 1st Extended class should initialize in the Ctrl structure', 
+    fn: () => {
+        expect(Ctrl.getState('Old', -1)).toEqual(objB.state)
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
   })
 
-  Deno.test('00 - The initial Parent class should not have been changed', () => {
-    expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
+  Deno.test({
+    name: '00 - The initial Parent class should not have been changed', 
+    fn: () => {
+      expect(Ctrl.getState('Young', -1)).toEqual(objA.state)
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
   })
 
 

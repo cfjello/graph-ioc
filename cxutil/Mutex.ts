@@ -45,7 +45,7 @@ export class Mutex implements Locker {
 
   /**
    *  Execute an async function that cannot be interrupted by
-   *  functions requesting a lock of the same name.
+   *  functions requesting a lock of the same storeName.
    *
    *  Example usage:
    *

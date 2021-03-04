@@ -3,14 +3,16 @@ import {Action} from "./Action.ts"
 export type NodeConfiguration = {
     jobThreshold: number,
     swarmSeed: number,
-    swarmMax:  number
+    swarmMax:  number,
+    swarmChildren?: string[]
 }
 
 
 export class ActionDescriptor {
     constructor ( 
         public rootName:   string               = "",
-        public name:       string               = "",
+        public storeName:  string               = "",
+        public actionName: string               = "",
         public ident:      string               = "",
         public jobId :     number               = -100,  
         public taskId:     number               = -100,
@@ -44,14 +46,20 @@ interface ActionIntf {
 }
 
 export interface ConfigMetaType {
-    name?:   string
-    ctrl?:   string
-    comp?:   string[]
-    init?:   boolean
+    name?:   string,
+    ctrl?:   string,
+    comp?:   string[],
+    init?:   boolean,
+    swarmName?: string
 }
 
 export type ActionConfigType<S> = ConfigMetaType & { state:   S }
 
-export type MetaType = ConfigMetaType & { callCount:  number, className?: string, funcName?: string, swarmName?: string , swarmChildren?: string[]}
+export type MetaType = ConfigMetaType & { 
+    callCount:  number, 
+    className?: string, 
+    funcName?: string,  
+    swarmChildren?: string[]
+}
 
 

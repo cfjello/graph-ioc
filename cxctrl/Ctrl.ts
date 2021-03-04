@@ -1,6 +1,6 @@
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
-import { CxStore }  from "../cxstore/CxStore.ts"
+import { CxStore, CxIterator  }  from "../cxstore/mod.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 import {$log, perf, ee, CxError, _ } from "../cxutil/mod.ts"
 import { RunIntf, ActionDescriptor, NodeConfiguration } from "./interfaces.ts"
@@ -23,6 +23,7 @@ export let p = perf
 //
 export let graph: CxGraph  = new CxGraph()
 export let actions         = new Map<string, Action<any>>() 
+export let iterators       = new Map<string, Map<string, CxIterator<any>>>() 
 // export let descriptors     = new Map<number, Map<string, ActionDescriptor>>()
 // export let promises        = new Map<string, Promise<any>>()
 
@@ -63,12 +64,41 @@ export function  getState<T>(name:string, idx: number = -1, dataOnly: boolean = 
     }
 }
 
- /**
-  *  Add an array of dependencies (containing names of actions) for a named action
-  * 
-  * @param actionName   Name of the action
-  * @param dependencies Array of dependencies
-  */
+export function  getStateData<T>(name:string, idx: number = -1 ): T {
+    return getState<T>( name, idx, true ) as T
+}
+
+
+/**
+ * Get an iterator for named stored object for a specific callee - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
+ * 
+ * @param calleeStoreKey  The Action storage storeName of the action requesting the iterator 
+ * @param storeKey        The store storeName of that you request an iterator for
+ * @param indexKeyId      The id of the index you want an iterator for - this will be prefixed with the prefix (see below) to make up the index storeName
+ * @param inObjectIterator If set to true, then each object fetched via the index will in turn be considered a iterable object with a next() that will return these values
+ * @param indexCounter    The index counter for accessing the index - setting this will allow you to traverse the index with an offset  
+ * 
+ * @return Iterator       An iterator for a list of a given type
+ */
+export function getIterator<T,E>( calleeStoreKey: string, storeKey: string, indexKeyId: number | string , inObjectIterator: boolean = false, indexCounter = 0, prefix: string = 'J' ) {
+    try { 
+        if ( ! iterators.has( calleeStoreKey) ) iterators.set( calleeStoreKey, new Map<string,  CxIterator<T,E>>() )
+        if ( ! iterators.get( calleeStoreKey)!.has( storeKey ) ) {
+            iterators.get( calleeStoreKey)!.set( storeKey, new CxIterator( storeKey, indexKeyId, inObjectIterator, indexCounter, prefix ) )
+        }
+        return  iterators.get( calleeStoreKey)!.get( storeKey )
+    }
+    catch(err) {
+        throw new CxError(__filename, 'getIterator()', 'CTRL-0010',`Failed to create iterator for ${storeKey}`, err)
+    }
+}
+
+/**
+ * Add an array of dependencies (containing names of actions) for a named action
+ * 
+ * @param actionName   Name of the action
+ * @param dependencies Array of dependencies
+ */
 export let  addDependencies = ( actionName: string, dependencies: string[] ): void => {
     for ( let dependency of dependencies ) { 
         graph.addDependency( actionName, dependency )
@@ -104,7 +134,7 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
         try {        
             perf.mark( 'addAction', actionDesc )
             await store.register( name, action.state, actionDesc, action.meta.init ).then(( storeId ) => { 
-                actionDesc.storeId   = storeId // store.getStoreId( name)
+                actionDesc.storeId   = storeId
                 action.currActionDesc = actionDesc       
                 graph.addNode( name )
                 graph.setNodeData( name, { jobThreshold: 0, swarmSeed: 0, swarmMax: 0 } as NodeConfiguration )
@@ -194,14 +224,19 @@ let clear = () => {
  * @return true for isDirty, otherwise false 
 */
 export let isDirty = ( actionName: string ): boolean => {
-    let storeId = store.getStoreId(actionName)
-    let children = graph.dependenciesOf(actionName)
-    let isDirty = false
-    children.forEach( (childKey: string) => { 
-        let childStoreId = store.getStoreId(childKey)
-        isDirty = ( isDirty || storeId <  childStoreId ) 
-        if ( isDirty ) return
-    })
+    let hasStoreId = ( store.state.has( actionName ) && store.state.get(actionName)!.size > 0  )
+    let storeId = hasStoreId ? store.getStoreId(actionName): -1
+    let isDirty = storeId < 0 ? true : false
+
+    if ( !isDirty ){
+        let children = graph.dependenciesOf(actionName)
+        children.forEach( (childKey: string) => { 
+            let childStoreId = store.getStoreId(childKey)
+            isDirty = ( storeId < childStoreId || childStoreId < 0 ) 
+            if ( isDirty ) return
+        })
+    }
+    // console.log( `Key: ${swarmName} isDirty: ${isDirty}`)
     return isDirty
 }
 
@@ -227,7 +262,7 @@ let resolveActionConfig = (name: string, maxThreshold: number): NodeConfiguratio
     //
     let swarmSeed = nodeConfig.swarmSeed < 2 ? 0 : nodeConfig.swarmSeed
     let swarmMax  = nodeConfig.swarmMax < swarmSeed ? swarmSeed : nodeConfig.swarmMax
-    return { jobThreshold: threshold, swarmSeed: swarmSeed, swarmMax: swarmMax }
+    return { jobThreshold: threshold, swarmSeed: swarmSeed, swarmMax: swarmMax, swarmChildren: nodeConfig.swarmChildren  }
 }
 
 /**
@@ -242,7 +277,6 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
     let inversHierarchy  = new Map<string, string>()
     let prevNodeIdent: string[] = []
     if ( graph.hasNode( rootName ) ) { 
-      
         //     
         // iterate through the reverse sorted graph, meaning that you read the leafs first
         //  
@@ -273,28 +307,37 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
             // Set the action Descriptor
             //
             let ad = new ActionDescriptor()
-            ad.rootName = rootName
-            ad.name       = name
-            ad.ident      = ident
-            ad.storeId    = storeId  // this is the current StoreId before running the action
-            ad.children   = children
-            ad.jobId      = jobId as number
-            ad.taskId     = taskIdSeq().next().value as number
-            ad.nodeConfig = nodeConfig
+            ad.rootName    = rootName
+            ad.storeName   = name
+            ad.actionName  = name
+            ad.ident       = ident
+            ad.storeId     = storeId  // this is the current StoreId before running the action
+            ad.children    = children
+            ad.jobId       = jobId as number
+            ad.taskId      = taskIdSeq().next().value as number
+            ad.nodeConfig  = _.clone( nodeConfig )
             actionsToRun.set(name, ad )
+            nodeConfig?.swarmChildren?.forEach( swarmName => {
+                // console.log( `SWARM ActionDescription ${swarmName}`)
+                let swarmAd        = _.clone(ad)
+                swarmAd.actionName = swarmName
+                swarmAd.nodeConfig = undefined
+                actionsToRun.set(swarmName, swarmAd )
+            })
+            
             prevNodeIdent.push(ident)
         });     
     }
     p.mark('getActionsToRun')
     // descriptors.set(jobId as number, actionsToRun)
-    return actionsToRun
+    return _.clone(actionsToRun)
 }
 
 /**
  * Build the Promise chain for executing the actionsToRunMap 
  * TODO: also provide an Observables implementation of this
  * 
- * @param actionName  The name of the Action to be executed 
+ * @param actionName  The actionName of the Action to be executed 
  * @param dirtyOnly If set to true, only run dirty (data is outdated and beed to be updated) actions
  * @returns ActionDescriptorIntf An Action descriptor interface containng a run() funtion that emits a run event for this action chain
  */
@@ -329,8 +372,11 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
         // Prevent the leaf nodes from running immediately by making them dependent on 
         // the event promise defined above
         //
-        if ( actionDesc.children.length ==  0 ) { 
-                dependsOn.set(eventName, eventTrig) 
+        if ( actionDesc.children.length ==  0 ) {       
+            //
+            // Generic handling for leaf objects
+            //
+            dependsOn.set(eventName, eventTrig)      
         }
         else {
             actionDesc.children.forEach( (childKey: string) => {
@@ -348,6 +394,15 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
             })
         }
         //
+        // Handling for swarmed objects: swarm master will wait for swarm children to emit finished events
+        // 
+        actionDesc.nodeConfig?.swarmChildren?.forEach( swarmName => {
+            let finishEvent = `${swarmName}_${jobId}_fin`
+            dependsOn.set(swarmName, new Promise( (resolve, reject) => { ee.on(finishEvent, () => resolve(finishEvent) ) } ) )
+            // console.log( `SWARM dependency for ${key}: ${swarmName}`)
+        })
+
+        //
         // Create Promises for the execution tree
         //
         if ( [ ...dependsOn.values() ].length > 0 )  {             
@@ -355,6 +410,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
             .then( () => {
                 return new Promise( async (resolve) => {
                     p.mark(`P_${key}_${actionDesc.jobId}`) 
+                    let finishEvent = `${key}_${actionDesc.jobId}_fin`
                     let res = false 
                     let dirty = false
                      /*
@@ -369,7 +425,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                             let actionObj = actions.get(key) as Action<any> 
                             actionObj.currActionDesc = actionDesc
                             let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                            let dirty = ( isDirty(key) ||  runAll || firstRun )
+                            let dirty = ( isDirty( actionDesc.storeName ) ||  runAll || firstRun )
                             if ( dirty ) {
                                 res = await actionObj.__exec__ctrl__function__ (actionDesc)
                                 actionDesc.ran = true
@@ -379,11 +435,11 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                                 //
                                 // Add to job-index even when action is not dirty/not called
                                 //
-                                store.index.get(jobKey)!.get(actionDesc.name)!.push(store.getStoreId( actionDesc.name ) )
+                                store.setIndexId(actionDesc.storeName, jobKey, store.getStoreId( actionDesc.storeName ) )
                             }
                             actionDesc.isDirty = dirty
                             actionDesc.success  = res || ! dirty                    
-                            actionDesc.storeId = store.getStoreId( key, -1 )
+                            actionDesc.storeId = store.getStoreId( actionObj.meta.name!, -1 )
                             actionObj.currActionDesc = actionDesc
                         }
                         else {
@@ -392,10 +448,14 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                         }
                     }
                     catch ( err ) {
-                        throw new CxError(__filename, 'promise()', 'CTRL-0008', `action ${key}.promise exec failed`, err)
+                        throw new CxError(__filename, 'promise()', 'CTRL-0008', `action ${actionDesc.actionName}.promise exec failed`, err)
                     }
-                    p.mark(`P_${key}_${actionDesc.jobId}`, actionDesc)
-                    resolve(key)
+                    finally {
+                        // console.log(`finish: ${finishEvent}`)
+                        ee.emit(finishEvent)
+                        p.mark(`P_${key}_${actionDesc.jobId}`, actionDesc)
+                        resolve(key)
+                    }
                 })
                 .catch( (e)  =>  {
                     $log.error(e)
@@ -429,7 +489,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                                             //
                                             // Emit a publish event
                                             //
-                                            ad.ran && ee.emit( `${ad.name}_pub` )
+                                            ad.ran && ee.emit( `${ad.storeName}_pub` )
                                         }
                                         resolve() 
                                     })
@@ -441,7 +501,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
 /**
  * Runs all dependencies of a target action in order one by one and then the action itself
  * 
- * @param actionName The name of the action to run
+ * @param actionName The actionName of the action to run
  * @return True if all actions ran successfully, otherwise false
  */
 export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<boolean> => {
@@ -449,20 +509,23 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
     let jobKey: string =  store.addIndexKey( jobId, 'J' )
 
     let actionsToRun = getActionsToRun(actionName, jobId) 
-    p.mark(`runTarget_${jobId}`) // , actionsToRun.get(actionName)
+    p.mark(`runTarget_${jobId}`) // , actionsToRun.get(swarmName)
 
     let resAll = true
     if ( graph.hasNode( actionName) ) {
         actionsToRun.forEach( async ( actionDesc: ActionDescriptor, name: string ) => {          
-            p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`) 
-            let actionObj = actions.get( actionDesc.name ) as Action<any>
+            p.mark(`F_${actionDesc.actionName}_${actionDesc.jobId}`) 
+        
+            let actionObj = actions.get( actionDesc.actionName ) as Action<any>
+            let eventName = !_.isUndefined( actionObj.meta.swarmName! ) && actionObj.meta.swarmName !== actionObj.meta.name ? actionObj.meta.swarmName : actionObj.meta.name
+            let finishEvent = `${eventName}_${jobId}_fin`
             let funcName: string = actionObj.meta.funcName as string
             
             try {
                 let res = false 
                 actionObj.currActionDesc = actionDesc
                 let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                let dirty = ( isDirty(actionDesc.name) ||  runAll || firstRun )
+                let dirty = ( isDirty(actionDesc.storeName) ||  runAll || firstRun )
                 if ( dirty ) {
                     //
                     // Run the objects main function
@@ -473,7 +536,7 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
                 }
                 else { 
                     // Add to job-index even when action is not dirty/not being called
-                    store.index.get(jobKey)!.get(actionDesc.name)!.push(store.getStoreId( actionDesc.name ) )
+                    store.setIndexId(actionDesc.storeName, jobKey, store.getStoreId( actionDesc.storeName ) )
                 }
                 actionDesc.isDirty = dirty
                 actionDesc.success = res || ! dirty
@@ -481,14 +544,15 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
                 resAll = res && resAll? res : false
             }
             catch (err) {
-                throw new CxError(__filename, 'runTarget()', 'CTRL-0006', `Failed to run ${actionDesc.name}: ${err}`, err)
+                throw new CxError(__filename, 'runTarget()', 'CTRL-0006', `Failed to run ${actionDesc.actionName}: ${err}`, err)
             }
             finally {
-                p.mark(`F_${actionDesc.name}_${actionDesc.jobId}`, actionDesc )
+                ee.emit(finishEvent)
+                p.mark(`F_${actionDesc.actionName}_${actionDesc.jobId}`, actionDesc )
             }
         })
     }
-    else throw new CxError(__filename, 'runTarget()', 'CTRL-0007', `Unknown actionName: ${actionName}`)
+    else throw new CxError(__filename, 'runTarget()', 'CTRL-0007', `Unknown swarmName: ${actionName}`)
       
     p.mark(`runTarget_${jobId}`)
     return Promise.resolve(resAll)         

@@ -17,3 +17,14 @@ export function* taskIdSeq() {
         yield taskNum++;
     }
 }
+
+/**
+ * The Ctrl transaction sequence Id 
+
+let swarmNum: number = 1
+export function* swarmIdSeq() {
+    while(true) {
+        yield swarmNum++;
+    }
+}
+ */

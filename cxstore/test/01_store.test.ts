@@ -123,7 +123,7 @@ type C_Type = { f1: string, f2: string }
         fn: async () => {
             let nameAndAge3 = new NameAndAge({name: 'Benny', age:38 })
             await store.register("NameAndAge3", nameAndAge3.state)
-            expect(store.getStoreId('NameAndAge3', 222)).toEqual(-1)          
+            expect(store.getStoreId('NameAndAge3', 222)).not.toEqual(222)          
             let storeId = store.getStoreId("NameAndAge3")
             try { 
                 store.getStoreId('Non_Existing_NameAndAge', storeId) 

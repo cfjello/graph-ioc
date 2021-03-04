@@ -1,5 +1,5 @@
 import { ctrl, Action, action } from "../../cxctrl/mod.ts"
-import { StoreIterator } from "../StoreIterator.ts"
+import { CxIterator } from "../mod.ts"
 import { StoreEntry } from "../interfaces.ts"
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import FTPClient from "https://deno.land/x/ftpc@v1.1.0/mod.ts"
@@ -104,6 +104,50 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
     }
 }
 
+
+@action({
+    state: [] as FtpFetchObjectType[],
+    init: false
+})
+export class FtpList3 extends Action<FtpFetchObjectType[]> {
+    constructor( 
+        public server: string = config.ftpConf.server, 
+        public directory: string = config.ftpConf.directory) {
+        super()
+    }
+    async main (): Promise<boolean> {
+        let self = this
+        try {
+            console.log ( `running ${this.meta.name}`)
+            let ftpClient = new FTPClient(this.server) 
+            await ftpClient.connect()
+            await ftpClient.chdir(this.directory)
+            let fileList = await ftpClient.list()
+            console.log ( `NEW FILELIST: ${fileList.length}`)
+
+            fileList.forEach( async (fileName, idx ) => {
+                self.state.push({
+                    ftpServer: self.server,
+                    ftpPath:  self.directory,
+                    fileName: fileName
+                })
+                if ( idx > 0 && idx % 17 === 0 ) {
+                    this.publish()
+                    self.state = []
+                }
+            })
+            ftpClient.close()
+            this.publish()
+            let list = this.getState(self.meta.name!, -1) as FtpFetchObjectType[] 
+            console.log ( `STORED FILELIST: ${list.length}`)
+        }
+        catch( err) {
+            throw new CxError( __filename, 'FtpList', 'FTP-0001',`ftpList.main() failed.`, err)
+        }
+        return Promise.resolve(true)
+    }
+}
+
 {
     let ftpFetch = await new FtpList().register('Fetch01')
     await ftpFetch.main()
@@ -111,26 +155,21 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
     Deno.test({
         name: '02 - Test ftp fetch should fetched the directory list', 
         fn: () => {
-            let stateRef = ctrl.store.get('Fetch01', -1 , false) as StoreEntry<FtpFetchObjectType>
-            
+            let stateRef = ctrl.store.get('Fetch01', -1 , false) as StoreEntry<FtpFetchObjectType>   
             expect(stateRef.meta).toBeDefined()
             expect(stateRef.meta.jobId).toBeDefined()
             expect(stateRef.meta.jobId).toEqual( ftpFetch.currActionDesc.jobId )
             expect(ctrl.store.index.get(`J${stateRef.meta.jobId}`)!.get('Fetch01')!.length ).toBeGreaterThan(258)
-            
-            // expect( obj.value ).toEqual( 'object')
-            // expect( ! _.isEmpty(obj.value.fileName.length) ).toBeTruthy()
-            // expect( StoreIterator.isIterable( itor ) ).toBeTruthy()
         },
         sanitizeResources: false,
         sanitizeOps: false
     })
 
 
-    let itor = new StoreIterator('Fetch01', ftpFetch.currActionDesc.jobId, 0 )
+    let itor = new CxIterator('Fetch01', ftpFetch.currActionDesc.jobId )
      
     Deno.test({
-        name: '02 - StoreIterator: Iterator should have been created', 
+        name: '02 - CxIterator: Iterator should have been created', 
         fn: () => {
             let obj = itor.next() as IteratorResult<FtpFetchObjectType>
             expect(obj).toBeDefined()
@@ -142,7 +181,7 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
     })
 
     Deno.test({
-        name: '02 - StoreIterator: Iterator should read the store object using next()', 
+        name: '02 - CxIterator: Iterator should read the store object using next()', 
         fn: () => {
             let done = false
             while ( ! done  ) {
@@ -164,7 +203,7 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
 {
     let ftpFetch2 = await new FtpList2().register('Fetch02')
     await ftpFetch2.main()
-    let itor2 = new StoreIterator('Fetch02', ftpFetch2.currActionDesc.jobId, 0 )
+    let itor2 = new CxIterator<FtpFetchObjectType[],FtpFetchObjectType>('Fetch02', ftpFetch2.currActionDesc.jobId )
 
 
     Deno.test( {
@@ -172,7 +211,7 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
         fn: async () => {
             let storeObj  = itor2.next() as IteratorResult<FtpFetchObjectType[]> // Fetch the first published object
             // let entries = storeObj.value[1].entries()            // The fetched object is iterable
-            let entries = StoreIterator.getEntries<FtpFetchObjectType>( storeObj )
+            let entries = CxIterator.getEntries<FtpFetchObjectType>( storeObj )
             // console.log(`VALUE LENGTH: ${storeObj.value.length}`)
 
             if ( ! _.isUndefined( entries ) ) {
@@ -190,6 +229,37 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
                     }
                 }
             }
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+ 
+}
+
+
+{
+    let ftpFetch3 = await new FtpList3().register('Fetch03')
+    await ftpFetch3.main()
+    let itor3 = new CxIterator<FtpFetchObjectType[],FtpFetchObjectType>('Fetch03', ftpFetch3.currActionDesc.jobId, true )
+
+
+    Deno.test( {
+        name: '02 - StoreIterator: getEntries() should return all entries object that supports next()', 
+        fn: async () => {
+            let inObjEntry  = itor3.next() as IteratorResult<FtpFetchObjectType> // Fetch the first published object
+            let done = false
+            while ( ! done ) {
+                // console.log(  inObjEntry )
+                inObjEntry  = itor3.next() as IteratorResult<FtpFetchObjectType>
+                done = inObjEntry.done as boolean
+                if ( ! done ) {
+                    let value   = inObjEntry.value[1]
+                    expect(value.ftpServer).toBeDefined()
+                    expect(value.ftpPath).toBeDefined()
+                    expect(value.fileName.length ).toEqual(11) 
+                }
+            }
+            return
         },
         sanitizeResources: false,
         sanitizeOps: false

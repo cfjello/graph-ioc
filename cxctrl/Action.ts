@@ -69,19 +69,20 @@ export abstract class Action<S> {
     /**
      * Set the dependencies of this action
      * 
-     * @param args An array of name dependencies for this action instance
+     * @param args An array of storeName dependencies for this action instance
      * @return The same list if succesful
      */
     setDependencies = (... args: string[] ): string [] => { 
         let dependencies = _.uniq( args ) 
-        ctrl.addDependencies( this.meta.name!, dependencies )
+        let name = !_.isUndefined( this.meta.swarmName! ) && this.meta.swarmName !== this.meta.name ? this.meta.swarmName : this.meta.name
+        ctrl.addDependencies( name!, dependencies )
         return dependencies
     }
 
     /**
      * Get a Map to named child states of a given run ( with the same jobId)
      * 
-     * @param storeName The name of the store object 
+     * @param storeName The storeName of the store object 
      * @param idx The index of the requested state in the list of immutable stored states, -1 defualt returns the most recently published (current) state
      * @returns A copy of the state 
      */
@@ -92,7 +93,7 @@ export abstract class Action<S> {
     /**
      * Get a copy of the state of a named action
      * 
-     * @param storeName The name of the store object 
+     * @param storeName The storeName of the store object 
      * @param idx The index of the requested state in the list of immutable stored states, -1 defualt returns the most recently published (current) state
      * @returns A copy of the state 
      */
@@ -142,45 +143,39 @@ export abstract class Action<S> {
     /** 
     * Register the Action Object
     *
-    * @param storeName The name of the store object 
+    * @param storeName The storeName of the store object 
     * @returns The reference itself
     */
 
-    register = async( name: string = this.meta.name as string ): Promise<any> => { 
-        let self = this
-        
-        if ( name !== this.meta.name ) { 
-            // This is a rename instance and we should not publish it's initial state to the store
-            this.meta.name = name 
-            this.meta.init = false   
-        }
+    register = async( 
+        name: string = this.meta.name as string, 
+        init: boolean = _.isUndefined(this.meta.init) ? false : this.meta.init! 
+        ): Promise<any> => { 
 
-        ctrl.initCounts.set( name, ctrl.initCounts.has( name ) ? ctrl.initCounts.get(name)! + 1 : 1 )
-        let _cnt_ = ctrl.initCounts.get(name)
-        await ctrl.addAction( this as Action<S>, _cnt_ )
+        let self = this
+        if ( name !== this.meta.name ) { // renamed instance
+            this.meta.name = name   
+        }
+        try {
+            ctrl.initCounts.set( name, ctrl.initCounts.has( name ) ? ctrl.initCounts.get(name)! + 1 : 1 )
+            let _cnt_ = ctrl.initCounts.get(name)
+            await ctrl.addAction( this as Action<S>, _cnt_ )
+        }
+        catch(err) {
+            throw new CxError('Action.ts', 'register()', 'ACT-0004', `Failed to register ${name}`, err)
+        }
         return Promise.resolve(self)
     }
 
-    __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<any> => {
-        let self = this
-        let lock = `${actionDesc.name}_run`
+    __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {  // 
         let res = false
-        
-        // The same async object should always execute sequencially 
-        await Mutex.doAtomic( lock , async () => {
-            try {
-                self.currActionDesc = actionDesc
-                // if ( this.isSwarmMaster() ) {
-                //     res = true // Don't run, since the swarm children already been executed
-                // }
-                // else {
-                    res = await (this as any)[self.meta.funcName!]()
-                // }
-            }
-            catch(err) {
-                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed to call ${this.meta.className}.${self.meta.funcName}`, err)
-            }
-        })
+        try {
+            this.currActionDesc = actionDesc             
+            res = await (this as any)[this.meta.funcName!]()
+        }
+        catch(err) {
+            throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed to call ${this.meta.className}.${this.meta.funcName}`, err)
+        }
         return Promise.resolve(res)
     }
     

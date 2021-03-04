@@ -4,7 +4,7 @@ import { ActionConfigType } from '../interfaces.ts'
 export function action<S>( config: ActionConfigType<S> ) {
     return function <T extends { new(...args: any[]): {} }>(constructor: T) { 
         config.name = _.isUndefined(config.name) ? constructor.name : config.name !
-        // console.log( `Creating action constructor for ${config.name}  --> constructor.name defined: ${! isUndefined(constructor.name)} ` ) 
+        // console.log( `Creating action constructor for ${config.storeName}  --> constructor.storeName defined: ${! isUndefined(constructor.storeName)} ` ) 
             let original: T = constructor
             //
             // Set the meta data

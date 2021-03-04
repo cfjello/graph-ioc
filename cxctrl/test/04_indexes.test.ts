@@ -12,7 +12,7 @@ class ObjP extends Action<P> {
     idx: number = 1
 
     main():boolean { 
-        let stateQ: Readonly<Q> = ctrl.getState("ObjQ")
+        // let stateQ: Q = ctrl.getState("ObjQ")
         this.state.name = `P_${this.idx++}`
         this.state.age++
         this.publish() 
@@ -24,8 +24,8 @@ class ObjP extends Action<P> {
 class ObjQ  extends Action<Q> {
     idx: number = 1
     main():boolean {
-        let stateR: Readonly<P> = ctrl.getState("ObjR");  
-        let stateS: Readonly<P> = ctrl.getState("ObjS");  
+        // let stateR: R = ctrl.getState("ObjR");  
+        // let stateS: S = ctrl.getState("ObjS");  
         this.state.name = `Q_${this.idx++}`
         this.state.age++
         this.publish()
@@ -65,7 +65,8 @@ class ObjR  extends Action<R> {
   
   instS.main() // This is now dirty
   // console.log('-----------------------')
-  await ctrl.runTarget('ObjP')
+  // await ctrl.runTarget('ObjP')
+  await instP.run()
   let collection = ctrl.store.getCollection( instP.currActionDesc.jobId, undefined, false )
 
   Deno.test( {
@@ -86,7 +87,7 @@ class ObjP1 extends Action<P> {
     idx: number = 1
 
     main():boolean { 
-        let stateQ: Readonly<Q> = ctrl.getState("ObjQ")
+        let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ")
         this.state.name = `P_${this.idx++}`
         this.state.age++
         this.publish() 
@@ -98,8 +99,8 @@ class ObjP1 extends Action<P> {
 class ObjQ1  extends Action<Q> {
     idx: number = 1
     main():boolean {
-        let stateR: Readonly<P> = ctrl.getState("ObjR");  
-        let stateS: Readonly<P> = ctrl.getState("ObjS");  
+        let stateR: Readonly<P> = ctrl.getStateData("ObjR");  
+        let stateS: Readonly<P> = ctrl.getStateData("ObjS");  
         this.state.name = `Q_${this.idx++}`
         this.state.age++
         this.publish()

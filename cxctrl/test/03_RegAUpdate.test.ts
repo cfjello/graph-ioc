@@ -30,11 +30,15 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
     
     let nameAndAge: NameAndAge = await new NameAndAge().register()
 
-    Deno.test('03 - Action Object should register under the default name', () => {
+    Deno.test({
+        name: '03 - Action Object should register under the default name',
+        fn: async () => {
         // console.log(`nameAndAge.meta.className!: ${nameAndAge.meta.className!}`)
         expect(nameAndAge.meta.className!).toEqual("NameAndAge")
         expect(ctrl.store.isRegistered(nameAndAge.meta.className!)).toBeTruthy()
-      
+        },
+        sanitizeResources: false,
+        sanitizeOps: false            
     })
 
     let nameAndAge2: NameAndAge = await new NameAndAge().register('OtherName')
@@ -45,7 +49,7 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
             expect(nameAndAge2.meta.className!).toEqual("NameAndAge")
             expect(nameAndAge2.meta.name!).toEqual('OtherName')
             expect(ctrl.store.isRegistered(nameAndAge2.meta.name!)).toBeTruthy()
-            let state = ctrl.getState('OtherName')
+            let state = ctrl.getStateData<A>('OtherName') as A
             expect(state.name).toEqual('Fidel')
             expect(state.age).toEqual(-1)
         },
@@ -84,7 +88,7 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
                 expect(nameAndAge3.state.lastName).toEqual('Castro')
                 expect(nameAndAge3.state.job).toEqual('Deceased')
                 expect(nameAndAge3.state.age).toEqual(108)
-                let state = ctrl.getState('Fidel')
+                let state = ctrl.getState('Fidel') as F
                 expect(state.lastName).toEqual('Castro')
                 expect(state.job).toEqual('Deceased')
                 expect(state.age).toEqual(108)

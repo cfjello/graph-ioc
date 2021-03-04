@@ -2,7 +2,7 @@ import { sprintf } from "https://deno.land/std/fmt/printf.ts"
 import { ctrl, Action }  from '../cxctrl/mod.ts'
 import { bootstrap, Constructor } from "./bootstrap.ts"
 // import { graph, actions } from "./Ctrl.ts"
-import { NodeConfiguration } from "./interfaces.ts"
+import { ActionConfigType, NodeConfiguration } from "./interfaces.ts"
 import {$log, perf, ee, CxError, _ } from "../cxutil/mod.ts"
 const __filename = new URL('', import.meta.url).pathname
 
@@ -15,13 +15,13 @@ export let setThreshold = ( key: string, _threshold: number )  => {
         setNodeConfig( key, { jobThreshold: threshold })
     }
     catch(err) {
-        throw new CxError(__filename, 'setThreshold()', 'CTRL-0008', `Failed to set jobThreshold due to: ${err}`)
+        throw new CxError(__filename, 'setThreshold()', 'CTRL-0009', `Failed to set jobThreshold due to: ${err}`)
     }
 }
 
 export let setNodeConfig = ( key: string, config: Partial<NodeConfiguration> ) => {
     if ( ! ctrl.graph.hasNode(key) ) 
-        throw new CxError(__filename, 'setNodeConfig()', 'CTRL-0009', `The graph has no node with id: ${key}`)
+        throw new CxError(__filename, 'setNodeConfig()', 'SWARM-0002', `The graph has no node with id: ${key}`)
     else {
         let currConfig = ctrl.graph.getNodeData(key)
         ctrl.graph.setNodeData(key, _.merge(currConfig, config))
@@ -35,11 +35,11 @@ export let setSwarmConf = ( key: string, _swarm: number,  _swarmMax: number | un
         setNodeConfig( key, { swarmSeed: swarmSeed, swarmMax: swarmMax })
     }
     catch(err) {
-        throw new CxError(__filename, 'setSwarm()', 'CTRL-0010', `Failed to set swarmCount due to: ${err}`)
+        throw new CxError(__filename, 'setSwarm()', 'SWARM-0003', `Failed to set swarmCount due to: ${err}`)
     }
 }
 
-export async function addSwarm<T>(actionName: string, _swarmSize: number = -1 ) { 
+export async function addSwarm<T>(actionName: string, actionClass: Constructor<T>, _swarmSize: number = -1 ) { 
     try {
         //
         // Get objects
@@ -48,7 +48,7 @@ export async function addSwarm<T>(actionName: string, _swarmSize: number = -1 ) 
 
         let rootObj             = ctrl.actions.get(actionName)! // as unknown as Constructor<T>
         let rootName            = rootObj.meta.name!
-        let rootDeps: string[]  = ctrl.graph.getIncomingEdges(rootName)
+        let rootDeps: string[]  = ctrl.graph.getOutgoingEdges(rootName)
         let config              = ctrl.graph.getNodeData( rootName ) as NodeConfiguration
         //
         // Initialize
@@ -56,11 +56,11 @@ export async function addSwarm<T>(actionName: string, _swarmSize: number = -1 ) 
         let swarmObjs: Array<typeof rootObj> = [] 
         let swarmSize = _swarmSize > config.swarmSeed && _swarmSize <= config.swarmMax ? _swarmSize: config.swarmSeed
 
-        if ( _.isUndefined( (rootObj as unknown as Action<T>).meta.swarmChildren) )  {
-            (rootObj as unknown as Action<T>).meta.swarmChildren = [] as string[]
+        if ( _.isUndefined( (rootObj as unknown as Action<T>).meta.swarmChildren) ) {
+            rootObj.meta.swarmChildren = [] as string[]
         }
         else {
-            throw new CxError(__filename, 'addSwarm()', 'CTRL-0012', `Instance $actionName already have a Swarm, use removeSwarm() first.`)
+            throw new CxError(__filename, 'addSwarm()', 'SWARM-0004', `Instance $actionName already have a Swarm, use removeSwarm() first.`)
         }
         let names: string[] = []
         //
@@ -71,34 +71,33 @@ export async function addSwarm<T>(actionName: string, _swarmSize: number = -1 ) 
             // Create new object
             //
             names[i] =  sprintf("%s_swarm_%04d", actionName, i);
-            let obj = await bootstrap( rootObj as unknown as Constructor<T>, {name: rootName, init: false, state: rootObj.state } );
+            ctrl.graph.addNode( names[i] )
+            let actionConfig: ActionConfigType<T> = { name: rootName, swarmName: names[i]!, init: false, state: rootObj.state } 
+            ctrl.actions.set( names[i], await bootstrap( actionClass, actionConfig ) as unknown as Action<T> )
             //
             // Configure new and root objects
             //
-            (obj as unknown as Action<T>).meta.swarmName = names[i];
-            (obj as unknown as Action<T>).setDependencies(...rootDeps);
-            (rootObj as unknown as Action<T>).meta.swarmChildren?.push(names[i])
-            //
-            // Add the new object to ctrl.actions
-            // 
-            ctrl.actions.set( names[i], obj as unknown as Action<T>)
+            ctrl.actions.get( names[i] )!.setDependencies(...rootDeps)
+            rootObj.meta.swarmChildren!.push(names[i])
         }
-        (rootObj as unknown as Action<T>).setDependencies(...names)
-        // rootObj as unknown as Action<T>).
+        let rootNodeData: NodeConfiguration  = ctrl.graph.getNodeData(actionName)
+        rootNodeData.swarmChildren = _.clone(rootObj.meta.swarmChildren)
+        ctrl.graph.setNodeData(actionName, rootNodeData)
     }
     catch(err) {
-        throw new CxError(__filename, 'addSwarm()', 'CTRL-0013', `Failed to build swarm.`, err)
+        throw new CxError(__filename, 'addSwarm()', 'SWARM-0005', `Failed to build swarm.`, err)
     }
 }
 
 export async function removeSwarm<T>(actionName: string ) { 
     try {
-        if ( ! ctrl.actions.has(actionName) ) throw new CxError(__filename, 'removeSwarm()', 'CTRL-0011', `No action instance named ${actionName} is registered.`)
+        if ( ! ctrl.actions.has(actionName) ) 
+            throw new CxError(__filename, 'removeSwarm()', 'SWARM-0006', `No action instance named ${actionName} is registered.`)
         //
         // Get objects
         //
         let rootObj   = ctrl.actions.get(actionName)!
-        // let rootName  = rootObj.meta.name
+        // let rootName  = rootObj.meta.storeName
 
         if ( ! rootObj.isSwarmMaster() ) throw new CxError(__filename, 'removeSwarm()', 'CTRL-0012', `${actionName} is not a swarmMaster instance`)
         rootObj.meta.swarmChildren!.forEach( (swarmInstName, idx ) => {
@@ -107,6 +106,6 @@ export async function removeSwarm<T>(actionName: string ) {
         rootObj.meta.swarmChildren = []
     }
     catch(err) {
-        throw new CxError(__filename, 'swarm()', 'CTRL-0014', `Failed to build swarm due to: ${err}`)
+        throw new CxError(__filename, 'removeSwarm()', 'SWARM-0007', `Failed to build swarm due to: ${err}`)
     }
 }

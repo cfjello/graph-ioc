@@ -36,7 +36,7 @@ class ObjP3 extends Action<P> {
 @action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ  extends Action<Q> {
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS');
       this.state.name = stateS.name + "," + this.state.name
       this.publish()
       return true
@@ -45,7 +45,7 @@ class ObjQ  extends Action<Q> {
 @action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ1  extends Action<Q> { 
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS1');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS1');
       this.state.name = stateS.name + "," + this.state.name
       this.publish()
       return true
@@ -55,7 +55,7 @@ class ObjQ1  extends Action<Q> {
 @action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ2  extends Action<Q> { 
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS2');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS2');
       this.state.name = stateS.name + "," + this.state.name
       this.publish()
       return true
@@ -65,7 +65,7 @@ class ObjQ2  extends Action<Q> {
 @action( { state: {name: 'Q', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjQ3  extends Action<Q> { 
   ctrl():boolean {
-      let stateS: Readonly<S> = ctrl.getState('ObjS3');
+      let stateS: Readonly<S> = ctrl.getStateData('ObjS3');
       this.state.name = `Q3:[${stateS.name}]`
       this.publish()
       return true
@@ -75,8 +75,8 @@ class ObjQ3  extends Action<Q> {
 @action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR  extends Action<R> { 
     ctrl():boolean {
-      let stateP: Readonly<P> = ctrl.getState("ObjP");
-      let stateQ: Readonly<Q> = ctrl.getState("ObjQ");
+      let stateP: Readonly<P> = ctrl.getStateData("ObjP");
+      let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ");
       this.state.name = stateP.name + "," + stateQ.name + "," + this.state.name
       this.publish()
       return true
@@ -86,8 +86,8 @@ class ObjR  extends Action<R> {
   @action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR1  extends Action<R> { 
   ctrl():boolean {
-    let stateP: Readonly<P> = ctrl.getState("ObjP1");
-    let stateQ: Readonly<Q> = ctrl.getState("ObjQ1");
+    let stateP: Readonly<P> = ctrl.getStateData("ObjP1");
+    let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ1");
     this.state.name = stateP.name + "," + stateQ.name + "," + this.state.name
     this.publish()
     return true
@@ -97,8 +97,8 @@ class ObjR1  extends Action<R> {
 @action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR2  extends Action<R> { 
   ctrl():boolean {
-    let stateP: Readonly<P> = ctrl.getState("ObjP2");
-    let stateQ: Readonly<Q> = ctrl.getState("ObjQ2");
+    let stateP: Readonly<P> = ctrl.getStateData("ObjP2");
+    let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ2");
     this.state.name = stateP.name + "," + stateQ.name + "," + this.state.name
     this.publish()
     return true
@@ -109,8 +109,8 @@ class ObjR2  extends Action<R> {
 class ObjR3  extends Action<R> { 
   ctrl():boolean {
     // $log.debug(`Into OBJC3 ctrl()`)
-    let stateP: Readonly<P> = ctrl.getState("ObjP3");
-    let stateQ: Readonly<Q> = ctrl.getState("ObjQ3");
+    let stateP: Readonly<P> = ctrl.getStateData("ObjP3");
+    let stateQ: Readonly<Q> = ctrl.getStateData("ObjQ3");
     this.state.name = `R3:[${stateP.name},${stateQ.name}]`
     this.publish()
     return true
@@ -200,23 +200,23 @@ class ObjR3  extends Action<R> {
       expect( runCount2 ).toEqual(runCount + 1)
   })
 
-
+/* Dependencies are:
+*     let deps2 = instQ3.setDependencies('ObjS3')
+*     let deps = instR3.setDependencies('ObjP3','ObjQ3')
+*/
     Deno.test('02 - It should only run dirty Dependency Promises',  async () => { 
         instS3.state.age = 199
         instS3.publish()
         await ctrl.runTarget('ObjQ3') // This will now be dirty
-        let nameR3 = ObjR3.name
-        let actionsToRun = ctrl.getActionsToRun('ObjP3')
         let runChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
         await runChain.run()
-        let jobName = runChain.getEventName()
         let tasks: Map<string, ActionDescriptor>   = runChain.getActionsToRun()!
 
        tasks.forEach((task: ActionDescriptor ,idx) => {
-         if (task.name == "ObjP3") expect(task.ran).toBeFalsy()
-         if (task.name == "ObjS3") expect(task.ran).toBeFalsy()
-         if (task.name == "ObjQ3") expect(task.ran).toBeTruthy()
-         if (task.name == "ObjR3") expect(task.ran).toBeTruthy()
+         if (task.actionName == "ObjP3") expect(task.ran).toBeFalsy()
+         if (task.actionName == "ObjS3") expect(task.ran).toBeFalsy()
+         if (task.actionName == "ObjQ3") expect(task.ran).toBeFalsy()
+         if (task.actionName == "ObjR3") expect(task.ran).toBeTruthy()
       })
     })
 

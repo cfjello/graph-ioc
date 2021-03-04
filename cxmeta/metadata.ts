@@ -1,5 +1,5 @@
 /**
- * Finds a more specific type for a given property name in an JS object - courtesy of mozilla
+ * Finds a more specific type for a given property storeName in an JS object - courtesy of mozilla
  * 
  * @param obj The object to be examined
  * @returns string  The property type 
@@ -17,17 +17,17 @@ let inspectObject = (obj: any | null ): string => {
     }
     //
     // Make the destinction between Function and function - in V8 it seems that 
-    // Function has a name property value: {"value":"anonymous","writable":false,"enumerable":false,"configurable":true} 
-    // where function has a name property value with an actual function name: {"value":"G","writable":false,"enumerable":false,"configurable":true}
+    // Function has a storeName property value: {"value":"anonymous","writable":false,"enumerable":false,"configurable":true} 
+    // where function has a storeName property value with an actual function storeName: {"value":"G","writable":false,"enumerable":false,"configurable":true}
     //
-    if ( matchType === 'Function' && Object.getOwnPropertyDescriptor(obj, 'name')?.value !== 'anonymous' ) {
+    if ( matchType === 'Function' && Object.getOwnPropertyDescriptor(obj, 'storeName')?.value !== 'anonymous' ) {
         matchType = 'function'
     }
     return matchType;
 }
 
 /**
- * Finds the type for a given property name in an object 
+ * Finds the type for a given property storeName in an object 
  * 
  * @param obj The object to be examined
  * @returns string  The property type 

@@ -11,8 +11,8 @@ export async function actionFactory<S>(name: string, state: S, stubs: string[] =
     @injectStubs(stubs)
     class FACTORY_CLASS extends Action<S> {}
 
-    // Set the name of the class
-    // Object.defineProperty (FACTORY_CLASS.constructor, 'name', {value: name});
+    // Set the storeName of the class
+    // Object.defineProperty (FACTORY_CLASS.constructor, 'storeName', {value: storeName});
 
     //
     // Now set some values
