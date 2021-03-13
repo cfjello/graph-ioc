@@ -159,45 +159,64 @@ class ObjR3  extends Action<R> {
     let deps2 = instQ3.setDependencies('ObjS3')
     let deps = instR3.setDependencies('ObjP3','ObjQ3')
     
-    Deno.test( '02 - Correct Dependencies before Running execution test', () => {
-      expect(deps2).toEqual(['ObjS3']) 
-      expect(deps).toEqual(['ObjP3', 'ObjQ3'])
+    Deno.test( {
+      name: '02 - Correct Dependencies before Running execution test', 
+      fn: () => {
+          expect(deps2).toEqual(['ObjS3']) 
+          expect(deps).toEqual(['ObjP3', 'ObjQ3'])
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
-    Deno.test('02 - It should RUN the Dependency Promises in order',  async () => {       
-        let nameR3 = ObjR3.name
-        let actionsToRun = ctrl.getActionsToRun('ObjR3')
-        expect(actionsToRun.size).toEqual(4)
-        let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', true)
-        expect(ObjR3.name).toEqual(nameR3)
-        await promiseChain.run()
-        expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
+    Deno.test({
+      name: '02 - It should RUN the Dependency Promises in order',  
+      fn : async () => {       
+          let nameR3 = ObjR3.name
+          let actionsToRun = ctrl.getActionsToRun('ObjR3')
+          expect(actionsToRun.size).toEqual(4)
+          let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', true)
+          expect(ObjR3.name).toEqual(nameR3)
+          await promiseChain.run()
+          expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
 
-    Deno.test ('02 - It should NOT RUN again with no dirty dependencies',  async () => { 
-        let nameR3 = ObjR3.name
-        // let actionsToRun = ctrl.getActionsToRun('ObjR3')
-        let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
-        expect(ObjR3.name).toEqual(nameR3)
-        await promiseChain.run()
-        
-        expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
+    Deno.test ( {
+      name: '02 - It should NOT RUN again with no dirty dependencies', 
+      fn:  async () => { 
+          let nameR3 = ObjR3.name
+          // let actionsToRun = ctrl.getActionsToRun('ObjR3')
+          let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
+          expect(ObjR3.name).toEqual(nameR3)
+          await promiseChain.run()
+          
+          expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
 
-/* TODO: Fix runTarget */
-    Deno.test('02 - runTarget() should only run dirty Dependency targets',  async () => { 
-      instQ3.state.age = 198
-      await instQ3.publish()  // This will now be dirty
-      //
-      // instQ3 and instP3 should not run
-      // but instR3 should run
-      //
-      let runCount = instR3.meta.callCount
-      await ctrl.runTarget('ObjR3')
-      let runCount2 = instR3.meta.callCount
-      expect(instR3.currActionDesc.ran).toBeTruthy()
-      expect( runCount2 ).toEqual(runCount + 1)
+    Deno.test({
+      name: '02 - runTarget() should only run dirty Dependency targets',  
+      fn: async () => { 
+          instQ3.state.age = 198
+          await instQ3.publish()  // This will now be dirty
+          //
+          // instQ3 and instP3 should not run
+          // but instR3 should run
+          //
+          let runCount = instR3.meta.callCount
+          await ctrl.runTarget('ObjR3')
+          let runCount2 = instR3.meta.callCount
+          expect(instR3.currActionDesc.ran).toBeTruthy()
+          expect( runCount2 ).toEqual(runCount + 1)
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
   })
 
 /* Dependencies are:
@@ -230,12 +249,17 @@ class ObjR3  extends Action<R> {
         }
     }
 
-    Deno.test('02 - It can remove a registration',  async () => { 
-      let instR4 = await new ObjS4().register()
-      expect( ctrl.actions.has('ObjS4') ).toBeTruthy()
-      await ctrl.removeAction("ObjS4")
-      expect( ctrl.actions.has('ObjS4') ).toBeFalsy()
-      await instR4.register()
-      expect( ctrl.actions.has('ObjS4') ).toBeTruthy()
+    Deno.test({
+      name: '02 - It can remove a registration',  
+      fn: async () => { 
+          let instR4 = await new ObjS4().register()
+          expect( ctrl.actions.has('ObjS4') ).toBeTruthy()
+          await ctrl.removeAction("ObjS4")
+          expect( ctrl.actions.has('ObjS4') ).toBeFalsy()
+          await instR4.register()
+          expect( ctrl.actions.has('ObjS4') ).toBeTruthy()
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
   

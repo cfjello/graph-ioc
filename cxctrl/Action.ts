@@ -170,11 +170,12 @@ export abstract class Action<S> {
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {  // 
         let res = false
         try {
+            ee.emit(`${actionDesc.actionName}_${actionDesc.jobId}_run`)
             this.currActionDesc = actionDesc             
             res = await (this as any)[this.meta.funcName!]()
         }
         catch(err) {
-            throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed to call ${this.meta.className}.${this.meta.funcName}`, err)
+            throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed call ${this.meta.className}.${this.meta.funcName}`, err)
         }
         return Promise.resolve(res)
     }

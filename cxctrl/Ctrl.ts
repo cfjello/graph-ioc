@@ -13,6 +13,9 @@ export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta
 
 export let store = new CxStore()
 
+
+// Latest: CTRL-0014
+
 //
 // Performance measurement and logger instance
 //
@@ -34,7 +37,7 @@ export let iterators       = new Map<string, Map<string, CxIterator<any>>>()
 export let initCounts = new Map<string,number>()
 
 //
-// Store Functions
+// Convenience utility Store Functions
 // 
 /**
  * Publish changes to the state of an action - TODO: check if this is really useful
@@ -68,7 +71,6 @@ export function  getStateData<T>(name:string, idx: number = -1 ): T {
     return getState<T>( name, idx, true ) as T
 }
 
-
 /**
  * Get an iterator for named stored object for a specific callee - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
  * 
@@ -90,6 +92,90 @@ export function getIterator<T,E>( calleeStoreKey: string, storeKey: string, inde
     }
     catch(err) {
         throw new CxError(__filename, 'getIterator()', 'CTRL-0010',`Failed to create iterator for ${storeKey}`, err)
+    }
+}
+
+// 
+// Job functions 
+//
+/**
+ * Evaluate and resolve an existing node configuration and return a new configuration - this is a configuration of the job threshold and and the swarm count and max for a given action object
+ * 
+ * @param name The name of the action object
+ * @param name The name of the action object
+ * @return NodeConfiguration A new validated node configuration
+ * 
+ */
+let resolveActionConfig = (name: string, maxThreshold: number): NodeConfiguration => {
+    //
+    // Read and resolve the threshold information
+    // 
+    let nodeConfig: NodeConfiguration = graph.getNodeData(name) 
+    let threshold = nodeConfig.jobThreshold
+    if ( maxThreshold >= 2  && nodeConfig.jobThreshold >= 2 )  { // threshold is not unlimited
+        if ( nodeConfig.jobThreshold < maxThreshold ) {
+            threshold =  maxThreshold
+        }
+        else {
+            maxThreshold  = threshold
+        }
+    }
+    else if ( nodeConfig.jobThreshold > 0 ) { // threshold is not unlimited, but ~ 1, where 2 is the minimum
+        threshold = 2
+    }
+    //
+    // Read and resolve swarm configuration
+    //
+    let swarmSeed = nodeConfig.swarmSeed < 2 ? 0 : nodeConfig.swarmSeed
+    let swarmMax  = nodeConfig.swarmMax < swarmSeed ? swarmSeed : nodeConfig.swarmMax
+    return { jobThreshold: threshold, swarmSeed: swarmSeed, swarmMax: swarmMax, swarmChildren: nodeConfig.swarmChildren  }
+}
+
+/**
+ * Delete entries relate to a specific job Id
+ * 
+ * @param storeName The name of the action object
+ * @param threshold An optional threshold that can be provided to overwrite the configured threshold
+ * 
+ */
+export let releaseJobs = async( storeName: string, _threshold: number = -1 ) => {
+    try {
+        let threshold = _threshold > 2 ? _threshold : (graph.getNodeData(storeName) as NodeConfiguration).jobThreshold ?? 0
+        //
+        // Find the number of object entries for a given storeName 
+        //
+        let currJobList = store.indexByName.get(storeName) ?? []
+        let currSize    = currJobList.length
+
+        if ( threshold > 2 && currSize > threshold ) {
+            let delList = currJobList.slice( 0, threshold )
+            let newList = currJobList.slice( threshold, currJobList.length )
+            let resList: string[] = []
+
+            delList.forEach( ( jobKey, idx ) => {
+                let deleted = true
+                store.index.get( jobKey )!.get(storeName)!.forEach( (storeId, idx) => {
+                    if ( store.state.get(storeName)!.get(storeId).meta.refCount < 2 ) {
+                        store.state.get(storeName)!.get(storeId)!.delete(storeId)
+                    }
+                    else {
+                        store.state.get(storeName)!.get(storeId).meta.refCount -= 1
+                        deleted = false
+                    }
+                })
+                if ( deleted ) {
+                    store.index.get(jobKey)!.delete(storeName)
+                    if ( store.index.get(jobKey)!.size === 0 ) {
+                        store.index.delete(jobKey)
+                        resList.push(jobKey)
+                    }
+                }
+            })
+            store.indexByName.set(storeName, _.xor(newList, resList))
+        }
+    }
+    catch(err) {
+        throw new CxError(__filename, 'ctrl.releaseJobs ()', 'CTRL-0014',`Failed to release jobs for : ${storeName}`, err)
     }
 }
 
@@ -150,28 +236,6 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
         }
     }
     return Promise.resolve(action)
-}
-
-/**
- * Delete entries related to a specific jobId 
- * 
- * @param jobId The jobId to delete:
- *      - remove Store state entries published by the job
- *      - clean up the control metadata related to the job
- */
-export let releaseJob = ( jobId: number) => {
-    let idxKey: string = 'J' + jobId
-    if ( store.index.has( idxKey) ) { 
-        store.index.get( idxKey )!.forEach( (val,key) => {
-            // TODO: implement this
-            // Delete store entry if applicable
-            // Delete index entry
-            // Delete ...
-        })
-    }
-    else {
-        throw new CxError(__filename, 'ctrl.releaseJob ()', 'CTRL-0004',`Cannot find an store index for ${idxKey}`)
-    }
 }
 
 /**
@@ -240,30 +304,6 @@ export let isDirty = ( actionName: string ): boolean => {
     return isDirty
 }
 
-let resolveActionConfig = (name: string, maxThreshold: number): NodeConfiguration => {
-    //
-    // Read and resolve the threshold information
-    // 
-    let nodeConfig: NodeConfiguration = graph.getNodeData(name) 
-    let threshold = nodeConfig.jobThreshold
-    if ( maxThreshold >= 2  && nodeConfig.jobThreshold >= 2 )  { // threshold is not unlimited
-        if ( nodeConfig.jobThreshold < maxThreshold ) {
-            threshold =  maxThreshold
-        }
-        else {
-            maxThreshold  = threshold
-        }
-    }
-    else if ( nodeConfig.jobThreshold > 0 ) { // threshold is not unlimited, but ~ 1, where 2 is the minimum
-        threshold = 2
-    }
-    //
-    // Read and resolve swarm configuration
-    //
-    let swarmSeed = nodeConfig.swarmSeed < 2 ? 0 : nodeConfig.swarmSeed
-    let swarmMax  = nodeConfig.swarmMax < swarmSeed ? swarmSeed : nodeConfig.swarmMax
-    return { jobThreshold: threshold, swarmSeed: swarmSeed, swarmMax: swarmMax, swarmChildren: nodeConfig.swarmChildren  }
-}
 
 /**
  * Build the map of all dependencies 
@@ -337,7 +377,7 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
  * Build the Promise chain for executing the actionsToRunMap 
  * TODO: also provide an Observables implementation of this
  * 
- * @param actionName  The actionName of the Action to be executed 
+ * @param actionName  The storeName of the Action to be executed 
  * @param dirtyOnly If set to true, only run dirty (data is outdated and beed to be updated) actions
  * @returns ActionDescriptorIntf An Action descriptor interface containng a run() funtion that emits a run event for this action chain
  */
@@ -363,7 +403,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
     // 
     // Build the promise chain of actions to run
     //
-    actionsToRun.forEach( (actionDesc, key) => {  
+    actionsToRun.forEach( (ad, key) => {  
         //
         // Handle child nodes that the target node depens on
         // 
@@ -372,14 +412,14 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
         // Prevent the leaf nodes from running immediately by making them dependent on 
         // the event promise defined above
         //
-        if ( actionDesc.children.length ==  0 ) {       
+        if ( ad.children.length ==  0 ) {       
             //
             // Generic handling for leaf objects
             //
             dependsOn.set(eventName, eventTrig)      
         }
         else {
-            actionDesc.children.forEach( (childKey: string) => {
+            ad.children.forEach( (childKey: string) => {
                 //
                 // Since the actionToRun list is reverse sorted
                 // the promise is assumed to be set at this point
@@ -394,13 +434,14 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
             })
         }
         //
-        // Handling for swarmed objects: swarm master will wait for swarm children to emit finished events
+        // Handling for swarmed objects: swarm master will wait for any one of the swarm children to emit a run event
         // 
-        actionDesc.nodeConfig?.swarmChildren?.forEach( swarmName => {
-            let finishEvent = `${swarmName}_${jobId}_fin`
-            dependsOn.set(swarmName, new Promise( (resolve, reject) => { ee.on(finishEvent, () => resolve(finishEvent) ) } ) )
-            // console.log( `SWARM dependency for ${key}: ${swarmName}`)
+        let swarmArr: any[] = []
+        ad.nodeConfig?.swarmChildren?.forEach( swarmName => {
+            let beginEvent = `${swarmName}_${jobId}_run`
+            swarmArr.push(new Promise( (resolve, reject) => { ee.on(beginEvent, () => resolve(beginEvent) ) } ) )
         })
+        if ( swarmArr.length > 0 ) dependsOn.set(key, Promise.any( swarmArr ) ) 
 
         //
         // Create Promises for the execution tree
@@ -409,8 +450,8 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
             actionsToRun.get(key)!.promise = Promise.all([ ...dependsOn.values() ] )
             .then( () => {
                 return new Promise( async (resolve) => {
-                    p.mark(`P_${key}_${actionDesc.jobId}`) 
-                    let finishEvent = `${key}_${actionDesc.jobId}_fin`
+                    p.mark(`P_${key}_${ad.jobId}`) 
+                    let finishEvent = `${key}_${ad.jobId}_fin`
                     let res = false 
                     let dirty = false
                      /*
@@ -423,37 +464,37 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                    try {
                         if ( actions.has(key) ) {
                             let actionObj = actions.get(key) as Action<any> 
-                            actionObj.currActionDesc = actionDesc
+                            actionObj.currActionDesc = ad
                             let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                            let dirty = ( isDirty( actionDesc.storeName ) ||  runAll || firstRun )
+                            let dirty = ( isDirty( ad.storeName ) ||  runAll || firstRun )
                             if ( dirty ) {
-                                res = await actionObj.__exec__ctrl__function__ (actionDesc)
-                                actionDesc.ran = true
+                                res = await actionObj.__exec__ctrl__function__ (ad)
+                                ad.ran = true
                                 actionObj.meta.callCount += 1
                             }
                             else { 
                                 //
                                 // Add to job-index even when action is not dirty/not called
                                 //
-                                store.setIndexId(actionDesc.storeName, jobKey, store.getStoreId( actionDesc.storeName ) )
+                                store.setIndexId(ad.storeName, jobKey, store.getStoreId( ad.storeName ) )
                             }
-                            actionDesc.isDirty = dirty
-                            actionDesc.success  = res || ! dirty                    
-                            actionDesc.storeId = store.getStoreId( actionObj.meta.name!, -1 )
-                            actionObj.currActionDesc = actionDesc
+                            ad.isDirty = dirty
+                            ad.success  = res || ! dirty                    
+                            ad.storeId = store.getStoreId( actionObj.meta.name!, -1 )
+                            actionObj.currActionDesc = ad
                         }
                         else {
-                            actionDesc.success = true
-                            actionDesc.ran = true
+                            ad.success = true
+                            ad.ran = true
                         }
                     }
                     catch ( err ) {
-                        throw new CxError(__filename, 'promise()', 'CTRL-0008', `action ${actionDesc.actionName}.promise exec failed`, err)
+                        throw new CxError(__filename, 'promise()', 'CTRL-0008', `action ${ad.actionName}.promise exec failed`, err)
                     }
                     finally {
                         // console.log(`finish: ${finishEvent}`)
                         ee.emit(finishEvent)
-                        p.mark(`P_${key}_${actionDesc.jobId}`, actionDesc)
+                        p.mark(`P_${key}_${ad.jobId}`, ad)
                         resolve(key)
                     }
                 })
@@ -501,7 +542,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
 /**
  * Runs all dependencies of a target action in order one by one and then the action itself
  * 
- * @param actionName The actionName of the action to run
+ * @param actionName The storeName of the action to run
  * @return True if all actions ran successfully, otherwise false
  */
 export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<boolean> => {

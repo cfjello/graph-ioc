@@ -79,8 +79,8 @@ export class FtpFetch extends Action<FtpFetchObjectType> {
     async main(): Promise<boolean> {   
         let ftpClient: FTPClient 
         try {
-            // console.log(`RUNNING ${ _.isUndefined(this.meta.swarmName!) ? this.meta.name : this.meta.swarmName }`)
-            if ( ! this.isSwarmMaster() ) {            
+            console.log(`RUNNING ${ _.isUndefined(this.meta.swarmName!) ? this.meta.name : this.meta.swarmName }`)
+            // if ( ! this.isSwarmMaster() ) {            
                 try {
                     ftpClient = new FTPClient(config.ftpConf.server)  //"ftp.ncdc.noaa.gov"
                     await ftpClient.connect()
@@ -105,7 +105,7 @@ export class FtpFetch extends Action<FtpFetchObjectType> {
                 finally {
                     try { ftpClient!.close() } catch(err) {}
                 }
-            }
+            // }
         }
         catch( err) {
             throw new CxError( __filename, 'ftpFetch.main()', 'FTP-0002',`FtpFetch failed with: ${JSON.stringify(err)}`, err)
@@ -125,7 +125,7 @@ let ftpFetch = await new FtpFetch().register()
 
 // ftpList.main()
 
-swarm.setSwarmConf('FtpFetch', 5, 10)
+swarm.setSwarmConf('FtpFetch', 3, 10)
 await ftpFetch.setDependencies('FtpList')
 await swarm.addSwarm('FtpFetch', FtpFetch )
 

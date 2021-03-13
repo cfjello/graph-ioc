@@ -14,6 +14,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
         public storeKey: string, 
         public indexKeyId: number | string, 
         public inObjectIterator: boolean = false, 
+        // public continuous: boolean = false,
         public indexCounter: number = 0, 
         prefix: string = 'J' 
         ) {

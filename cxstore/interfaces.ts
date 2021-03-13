@@ -12,19 +12,16 @@ export type StoreEntry<T> = {
     meta: StateKeys
 }
 
-/*
-interface Iterator<T> {
-    next(value?: any): IteratorResult<T>;
-    return?(value?: any): IteratorResult<T>;
-    throw?(e?: any): IteratorResult<T>;
+export type IteratorType = {
+    storeKey: string, 
+    indexKeyId: number | string, 
+    inObjectIterator?: boolean, 
+    continuous?: boolean,
+    indexCounter?: number, 
+    prefix?: string 
+
 }
 
-
-export interface IteratorResult<T> {
-    done: boolean;
-    value: T;
-}
-*/
 
 export interface IterateIndexMap {
     [Symbol.iterator](): IterableIterator<number>;

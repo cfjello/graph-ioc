@@ -30,15 +30,16 @@ export class ActionDescriptor {
 }
 
 export interface RunIntf {
-    getEventName():        string,
-    getJobId(): number,
-    getActionsToRun(): Map<string, ActionDescriptor>
-    run(): Promise<void>
+    getEventName():     string,
+    getJobId():         number,
+    getActionsToRun():  Map<string, ActionDescriptor>
+    run():              Promise<void>
 }
 
 export interface StateKeys {
-    jobId:   number
-    taskId: number
+    jobId:      number,
+    taskId:     number,
+    refCount:   number
 }
 
 interface ActionIntf {
@@ -56,9 +57,9 @@ export interface ConfigMetaType {
 export type ActionConfigType<S> = ConfigMetaType & { state:   S }
 
 export type MetaType = ConfigMetaType & { 
-    callCount:  number, 
-    className?: string, 
-    funcName?: string,  
+    callCount:      number, 
+    className?:     string, 
+    funcName?:      string,  
     swarmChildren?: string[]
 }
 

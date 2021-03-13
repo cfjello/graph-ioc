@@ -2,35 +2,38 @@
 
 - Serializable objects ( probably use node serialize-javascript and deno crypto.randombytes )
 - cxctrl 
+    - Test jobRelease functionality
     - Integrate the bootstrap function into Ctrl: DONE
     - Move the actionFactory to cxctrl - DONE
     - Ensure the correct execution order between @action, constructor() and botstrap() and actionFactory
     - Make it clear that Main can only return success or failure (and test that it does)
-    - Implement Swarm 
-      - Execution graph, add configuration
-      - Publish event with arguments (which specific swarm object published?)
-      - Collect method
-    - Threshold conflict resolution
+    - Implement Swarm : DONE
+      - Execution graph, add configuration, OK
+      - Publish event with arguments (which specific swarm object published?), DON'T
+      - Collect method, OK, same jobId and same storeName
+    - Threshold conflict resolution, Done
 - Action 
     - The update function should be aware of state typeof Array - SKIPPED, Typescript thinks that Arrays should be immutable
-    - Test the Array functionality SKIPPED , se just above
+    - Test the Array functionality SKIPPED , see above
     - The main() should be restricted to allways returning true or false
     - test getCollection()
     - test run()
-    - fix and re-include the update function
+    - fix and re-include the update function, DONE 
 - Store
+    - IMplement event base continuous iterator for action that does multiple publish() over time
+    - Test unregister with removal of indexes -> Referred to jobRelease test above
     - Remove jobId references from Store: OK
-    - remove index prefix default - NO
+    - remove index prefix default - DON'T
     - check if index exists before creating - OK
-    - test functionality of other indexes than the job-index
+    - test functionality of other indexes than the job-index - TBD
     - Find some hash-freindly, but sortable, id type for jobIds - TBD
-    - Also, test the creation of some other indexcies 
+    - Also, test the creation of some other indexcies - TBD
 - Implement the job depth based thresshold cleanup for:
-    - Jobs and Store objects
-    - Indexes
-    - Interdependencies and conflict resolution for multiple jobs and indecies
-    - Swarms
-    - Read consistency when deleting
+    - Jobs and Store objects, DONE
+    - Indexes, DONE
+    - Interdependencies and conflict resolution for multiple jobs and indecies, DONE, via store object reference counters
+    - Swarms, DONE 
+    - Read consistency when deleting: YES, via store object reference counters
 - cxmeta, es6 data types:
     - check/test all type found in: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
     - Use the reflect-metadata package for the metadata

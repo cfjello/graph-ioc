@@ -393,9 +393,14 @@ class ObjR3  extends Action<R> {
     let deps2 = instQ3.setDependencies('ObjS3')
     let deps = instR3.setDependencies('ObjP3','ObjQ3')
     
-    Deno.test( '01 - Correct Dependencies before Running execution test', () => {
-      expect(deps2).toEqual(['ObjS3']) 
-      expect(deps).toEqual(['ObjP3', 'ObjQ3'])
+    Deno.test( {
+      name: '01 - Correct Dependencies before Running execution test', 
+      fn: () => {
+        expect(deps2).toEqual(['ObjS3']) 
+        expect(deps).toEqual(['ObjP3', 'ObjQ3'])
+      },
+      sanitizeResources: false,
+      sanitizeOps: false
     })
     
     /*

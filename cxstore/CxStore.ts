@@ -15,7 +15,7 @@ export class CxStore {
     state           = new Map<string, Map<number, any>>()
     meta            = new Map<string, StateMetaData>()
     index           = new Map<string, Map<string, Array<number>>>()
-    // iterators       = new Map<string, IterateIndexMap>()
+    indexByName     = new Map<string, string[]>()
     indexMeta       = new Map<string, {prefix: string, selector: Function}>()
 
     updIdx: number  = 0
@@ -41,11 +41,15 @@ export class CxStore {
 
     async unregister (key: string): Promise<boolean> {
         if ( this.state.has(key) ) { 
-            await Mutex.doAtomic( key, async () => {
-                    this.state.delete(key)
-                    this.meta.delete(key)
-                    // TODO: Delete from index as well
-                }) 
+            this.state.delete(key)
+            this.meta.delete(key);
+
+            if ( this.indexByName.has(key) ) {
+                ( this.indexByName.get(key) ?? []) .forEach( (jobKey: string)  => {
+                    this.index.get(jobKey)?.delete(key)  
+                })
+                this.indexByName.delete(key)
+            }
         }
         else 
             throw new CxError(__filename, 'unregister()', 'STORE-0002', `Cannot find a store object named: ${key}`)
@@ -99,7 +103,7 @@ export class CxStore {
     addIndexKey( idxId: number | string , prefix: string = 'J' ): string {
         let idxKey: string =  typeof idxId === 'string' ? idxId : `${prefix}${idxId}`
         if ( ! this.index.has( idxKey ) ) { 
-            this.index.set( idxKey , new Map<string,Array<number>>() ) 
+            this.index.set( idxKey , new Map<string, Array<number>>() ) 
         }
         return idxKey   
     }
@@ -128,12 +132,18 @@ export class CxStore {
      */
     setIndexId (key: string, idxId: number | string, storeId: number, prefix: string = 'J' ): void {
         let idxKey: string =  typeof idxId === 'string' ? idxId : `${prefix}${idxId}`
+        
         if ( ! this.hasStoreId( key , storeId ) ) {
             throw new CxError(__filename, 'setIndexId()', 'STORE-0003', `No storeId for ${key} with storeId ${storeId} in store`)
-        }
-        let idxKey2: string =  this.addIndexKey(idxId, prefix)
-        if ( ! this.index.get( idxKey2)!.has(key) ) this.index.get(idxKey2)!.set(key, [])
+        }   
+        let idxKey2: string =  this.addIndexKey( idxId, prefix )
+        if ( ! this.index.get(idxKey2)!.has(key) ) {
+            this.index.get(idxKey2)!.set(key, [])
+            this.indexByName.set(key, [] )
+            this.indexByName.get(key)!.push(idxKey2)
+        }     
         this.index.get(idxKey2)!.get(key)!.push(storeId)
+        this.state.get(key)!.get(storeId).meta.refCount += 1
     }
 
      /** TODO: decide whether this function getIndexStoreId() is useful
@@ -244,7 +254,6 @@ export class CxStore {
         if ( ! this.state.has( key ) )  {
             this.state.set( key, new Map<number,T>() ) 
         }
-
         this.meta.set( key, { storeId: storeId, prevStoreId: -1, prevJobId: -1 , prevTaskId: -1 } as StateMetaData )
         return this.meta.get(key)!   
     }
@@ -278,7 +287,7 @@ export class CxStore {
             //
             // Store the cloned data
             //
-            this.state.get(key)!.set( storeId , { data: objClone as T, meta: { jobId: ad.jobId, taskId: ad.taskId } } as StoreEntry<T> )
+            this.state.get(key)!.set( storeId , { data: objClone as T, meta: { jobId: ad.jobId, taskId: ad.taskId, refCount: 0 } } as StoreEntry<T> )
             //
             // store the job-index reference
             //

@@ -4,9 +4,9 @@ Please NOTE: Release 0.0.1, PRE-ALPHA - Not ready for use!
 
 This is an experimental Graph based Inversion of Control System running server side on Deno. It has the following main features:
 
-- User defined Action classes that own, maintain and publish each their own data objects. They also defines their dependency of other Actions.
+- User defined Action classes that own, maintain and publish each their own data objects. They also defines their dependencies of other Actions.
 - Program Flows that are generated as hierarchies of dependencies between Actions. 
-- A Controller that orchestrates the Program Flows into execution trees called Jobs. Jobs are unidirectional hierarchical structures that are executed bottom up, that is from the leafs of the tree to the root. In practical programming terms, these Jobs can though of as single- and/or multi-branch Promise-chains, where each node is executed in the correct order. 
+- A Controller that orchestrates the Program Flows into execution trees called Jobs. Jobs are unidirectional hierarchical structures that are executed bottom up, that is from the leafs of the tree or sub-tree to the executing root node. In practical programming terms, these Jobs can though of as single- and/or multi-branch Promise-chains, where each node is executed in the correct order. 
 - An in-memory immutable Data Store with versioned data objects, that allows for other Actions gain read-only access.
 
 
@@ -17,11 +17,11 @@ So, an application using this system can be viewed as having three integrated la
 | :------------------------------------------------------------- | -------------------------------------------------------------: |
 |User defined Data Objects and Actions acting on these objects: |Decorator, Factory and Bootstrap functions   |
 | Controller Module:   |Dependencies graphs, Execution Trees and Job Control |
-| In-Memory immutable Data Store:                                 |Freeze and Version of data, Job indexing |
+| In-Memory immutable Data Store:                                 |Publish, Freeze and Versioning of data, Job indexing and Iterators |
 |
 <br/><br/>
 
-## Simple Usage Example
+# Simple Usage Example
 
 First write a Typescript type declaration that defines your data object type:
 
@@ -43,15 +43,15 @@ export type EmployeesType = {
 
 The code above also imports two artifacts: 
 - *Action*: This abstract Action class that defines the integration with the framework and your user defined class will inherit from Action
-- *action*: A decorator used to initiate the Action class based a supplied configuration 
+- *action*: A decorator used to initiate the Action class based on a supplied configuration 
 
 Using these, we can write a user defined action class, a class that owns and manages a specific data object:
 ```typescript 
 @action({
     name: 'Employees',
     state: [] as EmployeesType[],
-    init: false,
-    ctrl: 'main'
+    init: false,  // the default
+    ctrl: 'main'  // the default
 })
 export class Employees extends Action<EmployeesType[]> {
 
@@ -69,11 +69,11 @@ export class Employees extends Action<EmployeesType[]> {
 
 The Employees class is decorated by the @action decorator:
 - *name*: This is the name of the data object within the Data Store - a specific name can only be registered once.
-- *state*: This is the type of the state object with the Employees class, that has the mandatory name *state*.
-- *init*: indicates whether this first version of the *state* are initialized with some meaningfull value that should be pushed to the Data Store, the default being false.
-- *ctrl*: This is the name of the Employees controller function responsible for managing the state - this is a function can be invoked automatically by the framework. The default is ctrl: *'main'*.
+- *state*: This is the EmployeesType[] state object that the Employees class owns the maintains and it has the mandatory name *state*.
+- *init*: indicates whether this first version of the *state* is initialized with some meaningfull value by the action decorator and thus should be pushed to the Data Store.
+- *ctrl*: This is the name of the Employees controller function responsible for managing the state - this is a function will be invoked automatically by the framework.
 
-Except for the *main()* function that is mandatory, the other functions optional, just adding a bit of fuctionality. 
+The *main()* function is mandatory, this is where you will implement/dispatch the application logic (calling whatever other functions you need).
 
 Now Instantiate the class and then register the data object, the *state*, in the Data Store. After that fetch the date from the store and write it to console:
 
@@ -117,7 +117,11 @@ await emp.publish()
 emp.show()
 ```
 
-Please note, that *register()* and *publish()* are *async* functions - if you forget to call them with *await*, it will bite you. 
+Please note, that *register()* is an *async* function - if you forget to call it with *await*, it will bite you. 
+
+
+## Dependencies
+
 
 
 ## Motivation
