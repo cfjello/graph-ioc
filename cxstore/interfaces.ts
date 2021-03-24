@@ -13,17 +13,30 @@ export type StoreEntry<T> = {
 }
 
 export type IteratorType = {
-    storeKey: string, 
-    indexKeyId: number | string, 
-    inObjectIterator?: boolean, 
-    continuous?: boolean,
-    indexCounter?: number, 
-    prefix?: string 
-
+    storeKey:       string, 
+    indexKey:       number | string, 
+    nestedIterator: boolean, 
+    indexOffset:    number, 
+    indexPrefix:    string 
 }
 
+
+export interface AsyncIterator<T> {
+    next(value?: any): Promise<IteratorResult<T>>;
+    return?(value?: any): Promise<IteratorResult<T>>;
+    throw?(e?: any): Promise<IteratorResult<T>>;
+  }
+
+  /*
+interface AsyncIteratorResult<T> {
+    done: boolean;
+    value: T;
+}
+
+*/
 
 export interface IterateIndexMap {
     [Symbol.iterator](): IterableIterator<number>;
 }
+
   

@@ -80,12 +80,12 @@ export class CxStore {
      * 
      * @param indexName The name of the index
      * @param idxId    The index Id of the indexed object
-     * @param prefix   The index prefix, a string to be added in front of the index id (idxId)
+     * @param prefix   The index indexPrefix, a string to be added in front of the index id (idxId)
      * @return string  The index identifier
      */
     createIndex<T>( indexName: string, prefix: string, selector: Function): void {
         if ( this.indexMeta.has( prefix ) ) { 
-            throw new CxError(__filename, 'store.createIndex()', 'STORE-0011', `Duplicate index prefix: ${prefix}, when trying to create index`)
+            throw new CxError(__filename, 'store.createIndex()', 'STORE-0011', `Duplicate index indexPrefix: ${prefix}, when trying to create index`)
         }
         else if ( ! this.state.has(indexName) ) {
             throw new CxError(__filename, 'store.createIndex()', 'STORE-0012', `Index target state object: ${indexName}, does not exist in the Store`)
@@ -97,7 +97,7 @@ export class CxStore {
      * Adds a given index identifier if it does not exixt, e.g. a jobId to the index
      * 
      * @param idxId    The index Id of the indexed object
-     * @param prefix   The index prefix, a string to be added in front of the index id (idxId)
+     * @param prefix   The index indexPrefix, a string to be added in front of the index id (idxId)
      * @return string  The index identifier
     */
     addIndexKey( idxId: number | string , prefix: string = 'J' ): string {
@@ -112,7 +112,7 @@ export class CxStore {
      * Determines whether index object exists for a given index Id
      * 
      * @param key The storeName of the index
-     * @param idxId  The index Id or name of the index - number is supplied it will be prefixed with the index prefix for constructing the name
+     * @param idxId  The index Id or name of the index - number is supplied it will be prefixed with the index indexPrefix for constructing the name
      * @return boolean
      */
     hasIndexId (key: string, idxId: number | string, prefix: string = 'J'): boolean {
@@ -121,13 +121,13 @@ export class CxStore {
     }
 
      /**
-     * Sets the index for a given index Id (defined as a number and a fixed prefix) and defaults to the previous storeId if no storeId is given
+     * Sets the index for a given index Id (defined as a number and a fixed indexPrefix) and defaults to the previous storeId if no storeId is given
      * (This is usefull for generation an index for the objects created given job run)
      * 
      * @param key       The storeName of the indexed object
      * @param idxId     The idxId of the indexed object
      * @param storeId   The storeId to put in the index
-     * @param prefix    The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @param prefix    The index indexPrefix that define the type of index, e.g. key=189 and indexPrefix 'S' result in index key: 'S189' 
      * @return void
      */
     setIndexId (key: string, idxId: number | string, storeId: number, prefix: string = 'J' ): void {
@@ -147,16 +147,16 @@ export class CxStore {
     }
 
      /** TODO: decide whether this function getIndexStoreId() is useful
-     * Gets the storeId for a given key, idxId and prefix 
+     * Gets the storeId for a given key, idxId and indexPrefix 
      * 
      * @param key The storeName of the indexed object
      * @param idxId  The idxId of the indexed object
-     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @param prefix  The index indexPrefix that define the type of index, e.g. key=189 and indexPrefix 'S' result in index key: 'S189' 
      * @return void
 
-    getIndexStoreId( key: string, idxId:number | string, prefix: string = 'J' ) : number {
-        let idxKey: string =  typeof idxId === 'string' ? idxId : `${prefix}${idxId}`
-        if ( ! this.hasIndexId( key, idxId, prefix ) )
+    getIndexStoreId( key: string, idxId:number | string, indexPrefix: string = 'J' ) : number {
+        let idxKey: string =  typeof idxId === 'string' ? idxId : `${indexPrefix}${idxId}`
+        if ( ! this.hasIndexId( key, idxId, indexPrefix ) )
             throw new CxError(__filename, 'getIndexStoreId()', 'STORE-0005', `Cannot find index entry for ${idxKey}[${key}]`)
         else
             return this.index.get(idxKey)!.get(key)
@@ -164,15 +164,14 @@ export class CxStore {
     */
 
     /**
-     * Gets a collection of StoreIDs for a given key, idxId and prefix - this i.e. can be used 
+     * Gets a collection of StoreIDs for a given key, idxId and indexPrefix - this i.e. can be used 
      * to fetch references to all objects related to a given index Id. Object-states in the collection cannot be updated
      * 
      * @param key The storeName of the indexed object
      * @param idxId  The idxId of the indexed object
-     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @param prefix  The index indexPrefix that define the type of index, e.g. key=189 and indexPrefix 'S' result in index key: 'S189' 
      * @return Map<string, any> A map of named objects and thier StoreIDs
     */
-   
     getCollection( idxId:number | string, prefix: string = 'J', dataOnly: boolean = true ) : Map<string, any> {
         let idxKey = typeof idxId === 'string' ? idxId : `${prefix}${idxId}`
         let collection = new Map<string, any>()
@@ -197,7 +196,7 @@ export class CxStore {
      * 
      * @param key The storeName of the indexed object
      * @param idxId  The index Id of the indexed object
-     * @param prefix  The index prefix that define the type of index, e.g. key=189 and prefix 'S' result in index key: 'S189' 
+     * @param prefix  The index indexPrefix that define the type of index, e.g. key=189 and indexPrefix 'S' result in index key: 'S189' 
      * @return S | undefined if the indexed object does not exist
      */
     getIndexState<S>(key: string, idxId: number | string, prefix: string = 'J' ): StoreEntry<S>[] | undefined {

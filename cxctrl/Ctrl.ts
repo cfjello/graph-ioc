@@ -76,17 +76,22 @@ export function  getStateData<T>(name:string, idx: number = -1 ): T {
  * 
  * @param calleeStoreKey  The Action storage storeName of the action requesting the iterator 
  * @param storeKey        The store storeName of that you request an iterator for
- * @param indexKeyId      The id of the index you want an iterator for - this will be prefixed with the prefix (see below) to make up the index storeName
- * @param inObjectIterator If set to true, then each object fetched via the index will in turn be considered a iterable object with a next() that will return these values
- * @param indexCounter    The index counter for accessing the index - setting this will allow you to traverse the index with an offset  
+ * @param indexKey      The id of the index you want an iterator for - this will be prefixed with the indexPrefix (see below) to make up the index storeName
+ * @param nestedIterator If set to true, then each object fetched via the index will in turn be considered a iterable object with a next() that will return these values
+ * @param indexOffset    The index counter for accessing the index - setting this will allow you to traverse the index with an offset  
  * 
  * @return Iterator       An iterator for a list of a given type
  */
-export function getIterator<T,E>( calleeStoreKey: string, storeKey: string, indexKeyId: number | string , inObjectIterator: boolean = false, indexCounter = 0, prefix: string = 'J' ) {
+export function getIterator<T,E>( calleeStoreKey: string, storeKey: string, indexKey: number | string , nestedIterator: boolean = false, indexOffset = 0, indexPrefix: string = 'J' ) {
     try { 
         if ( ! iterators.has( calleeStoreKey) ) iterators.set( calleeStoreKey, new Map<string,  CxIterator<T,E>>() )
         if ( ! iterators.get( calleeStoreKey)!.has( storeKey ) ) {
-            iterators.get( calleeStoreKey)!.set( storeKey, new CxIterator( storeKey, indexKeyId, inObjectIterator, indexCounter, prefix ) )
+            iterators.get( calleeStoreKey)!.set( storeKey, new CxIterator( {
+                storeKey: storeKey, 
+                indexKey: indexKey, 
+                nestedIterator: nestedIterator, 
+                indexOffset: indexOffset, 
+                indexPrefix: indexPrefix } ) )
         }
         return  iterators.get( calleeStoreKey)!.get( storeKey )
     }

@@ -1,5 +1,5 @@
 import { ctrl, Action, action } from "../../cxctrl/mod.ts"
-import { CxIterator } from "../mod.ts"
+import { CxIterator, CxContinuous } from "../mod.ts"
 import { StoreEntry } from "../interfaces.ts"
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import FTPClient from "https://deno.land/x/ftpc@v1.1.0/mod.ts"
@@ -166,7 +166,10 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
     })
 
 
-    let itor = new CxIterator('Fetch01', ftpFetch.currActionDesc.jobId )
+    let itor = new CxIterator({ 
+        storeKey: 'Fetch01', 
+        indexKey: ftpFetch.currActionDesc.jobId 
+    })
      
     Deno.test({
         name: '02 - CxIterator: Iterator should have been created', 
@@ -203,7 +206,10 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
 {
     let ftpFetch2 = await new FtpList2().register('Fetch02')
     await ftpFetch2.main()
-    let itor2 = new CxIterator<FtpFetchObjectType[],FtpFetchObjectType>('Fetch02', ftpFetch2.currActionDesc.jobId )
+    let itor2 = new CxIterator<FtpFetchObjectType[],FtpFetchObjectType>( {
+        storeKey: 'Fetch02', 
+        indexKey: ftpFetch2.currActionDesc.jobId 
+    })
 
 
     Deno.test( {
@@ -225,7 +231,8 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
                         let value: FtpFetchObjectType  = obj.value[1]
                         expect(value.ftpServer).toBeDefined()
                         expect(value.ftpPath).toBeDefined()
-                        expect(value.fileName.length ).toEqual(11) 
+                        // console.log(value.fileName )
+                        expect(value.fileName.length ).toBeGreaterThan(10) 
                     }
                 }
             }
@@ -240,11 +247,15 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
 {
     let ftpFetch3 = await new FtpList3().register('Fetch03')
     await ftpFetch3.main()
-    let itor3 = new CxIterator<FtpFetchObjectType[],FtpFetchObjectType>('Fetch03', ftpFetch3.currActionDesc.jobId, true )
+    let itor3 = new CxIterator<FtpFetchObjectType[],FtpFetchObjectType>( {
+        storeKey: 'Fetch03', 
+        indexKey: ftpFetch3.currActionDesc.jobId, 
+        nestedIterator: true 
+    })
 
 
     Deno.test( {
-        name: '02 - StoreIterator: getEntries() should return all entries object that supports next()', 
+        name: '02 - StoreIterator: getEntries() should return all entries objects that supports next()', 
         fn: async () => {
             let inObjEntry  = itor3.next() as IteratorResult<FtpFetchObjectType> // Fetch the first published object
             let done = false
@@ -256,7 +267,7 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
                     let value   = inObjEntry.value[1]
                     expect(value.ftpServer).toBeDefined()
                     expect(value.ftpPath).toBeDefined()
-                    expect(value.fileName.length ).toEqual(11) 
+                    expect(value.fileName.length ).toBeGreaterThan(10) 
                 }
             }
             return
@@ -264,6 +275,66 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
         sanitizeResources: false,
         sanitizeOps: false
     })
- 
 }
 
+@action({
+    state: [] as number[],
+    init: false
+})
+export class NumList extends Action<number[]> {
+    counter: number = 0
+
+    main() {
+        let s: number[] = []
+        if ( this.counter < 100 ) {
+            for ( let i = 1; i < 11; i++ ) {
+                this.counter += 1
+                s.push(this.counter)
+            }
+            this.state = _.clone(s)
+            this.publish()
+        }
+    }
+}
+
+{
+    let numList = await new NumList().register()
+
+    await numList.run()
+    Deno.test({
+        name: '02 - CxContinuous: Test object for CONTINUOUS should be fully initialized', 
+        fn: async () => {
+            let nl = ctrl.store.get<number[]>('NumList') as number[]
+            expect(nl).toBeDefined()
+            console.log(`LENGTH: ${nl.length}`)
+            // console.log(nl)
+            expect ((nl as number[]).length).toEqual(10)
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+
+    let itor4 = new CxContinuous<number[]>( {
+        storeKey: 'NumList', 
+        indexKey: numList.currActionDesc.jobId,
+        nestedIterator: true
+    })
+    Deno.test({
+        name: '02 - CxContinuous: Iterator should read a CONTINUOUS store object using next()', 
+        fn: async () => {
+            let done = false
+            let count = 1
+            while ( ! done  ) {
+                let obj = await itor4.next() as IteratorResult<number> 
+                done = obj.done as boolean
+                if ( ! done ) {
+                    let value: number  = obj.value[1]
+                    expect(value).toEqual(count++)
+                }
+            }
+            expect(count).toEqual(101)
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+}
