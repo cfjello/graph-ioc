@@ -40,7 +40,6 @@ export class FtpList extends Action<FtpFetchObjectType> {
     async main (): Promise<boolean> {
         let self = this
         try {
-            console.log ( `running ${this.meta.name}`)
             let ftpClient = new FTPClient(this.server) 
             await ftpClient.connect()
             await ftpClient.chdir(this.directory)
@@ -56,7 +55,6 @@ export class FtpList extends Action<FtpFetchObjectType> {
                 cnt++
                 self.publish()
             })  
-            console.log(`LIST COUNT: ${cnt}`)
         }
         catch( err) {
             throw new CxError( __filename, 'FtpList2', 'FTP-0001',`ftpList.main() failed.`, err)
@@ -78,12 +76,10 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
     async main (): Promise<boolean> {
         let self = this
         try {
-            console.log ( `running ${this.meta.name}`)
             let ftpClient = new FTPClient(this.server) 
             await ftpClient.connect()
             await ftpClient.chdir(this.directory)
             let fileList = await ftpClient.list()
-            console.log ( `NEW FILELIST: ${fileList.length}`)
 
             fileList.forEach( async (fileName, idx ) => {
                 self.state[idx] = {
@@ -95,7 +91,6 @@ export class FtpList2 extends Action<FtpFetchObjectType[]> {
             ftpClient.close()
             this.publish()
             let list = this.getState(self.meta.name!, -1) as FtpFetchObjectType[] 
-            console.log ( `STORED FILELIST: ${list.length}`)
         }
         catch( err) {
             throw new CxError( __filename, 'FtpList', 'FTP-0001',`ftpList.main() failed.`, err)
@@ -118,12 +113,10 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
     async main (): Promise<boolean> {
         let self = this
         try {
-            console.log ( `running ${this.meta.name}`)
             let ftpClient = new FTPClient(this.server) 
             await ftpClient.connect()
             await ftpClient.chdir(this.directory)
             let fileList = await ftpClient.list()
-            console.log ( `NEW FILELIST: ${fileList.length}`)
 
             fileList.forEach( async (fileName, idx ) => {
                 self.state.push({
@@ -139,7 +132,6 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
             ftpClient.close()
             this.publish()
             let list = this.getState(self.meta.name!, -1) as FtpFetchObjectType[] 
-            console.log ( `STORED FILELIST: ${list.length}`)
         }
         catch( err) {
             throw new CxError( __filename, 'FtpList', 'FTP-0001',`ftpList.main() failed.`, err)
@@ -216,22 +208,17 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
         name: '02 - StoreIterator: getEntries() should return all entries object that supports next()', 
         fn: async () => {
             let storeObj  = itor2.next() as IteratorResult<FtpFetchObjectType[]> // Fetch the first published object
-            // let entries = storeObj.value[1].entries()            // The fetched object is iterable
             let entries = CxIterator.getEntries<FtpFetchObjectType>( storeObj )
-            // console.log(`VALUE LENGTH: ${storeObj.value.length}`)
-
             if ( ! _.isUndefined( entries ) ) {
                 let done = false
                 while ( ! done ) {
                     let obj = entries!.next() as IteratorResult<FtpFetchObjectType> 
-                    // console.log(obj)
 
                     done = obj.done as boolean
                     if ( ! done ) {
                         let value: FtpFetchObjectType  = obj.value[1]
                         expect(value.ftpServer).toBeDefined()
                         expect(value.ftpPath).toBeDefined()
-                        // console.log(value.fileName )
                         expect(value.fileName.length ).toBeGreaterThan(10) 
                     }
                 }
@@ -260,7 +247,6 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
             let inObjEntry  = itor3.next() as IteratorResult<FtpFetchObjectType> // Fetch the first published object
             let done = false
             while ( ! done ) {
-                // console.log(  inObjEntry )
                 inObjEntry  = itor3.next() as IteratorResult<FtpFetchObjectType>
                 done = inObjEntry.done as boolean
                 if ( ! done ) {
@@ -306,8 +292,6 @@ export class NumList extends Action<number[]> {
         fn: async () => {
             let nl = ctrl.store.get<number[]>('NumList') as number[]
             expect(nl).toBeDefined()
-            console.log(`LENGTH: ${nl.length}`)
-            // console.log(nl)
             expect ((nl as number[]).length).toEqual(10)
         },
         sanitizeResources: false,
@@ -326,6 +310,34 @@ export class NumList extends Action<number[]> {
             let count = 1
             while ( ! done  ) {
                 let obj = await itor4.next() as IteratorResult<number> 
+                done = obj.done as boolean
+                if ( ! done ) {
+                    let value: number  = obj.value[1]
+                    expect(value).toEqual(count++)
+                }
+            }
+            expect(count).toEqual(101)
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+}
+
+{
+    let numList2 = await new NumList().register('NumList2')
+
+    let itor5 = new CxContinuous<number[]>( {
+        storeKey: 'NumList2', 
+        indexKey: -1,
+        nestedIterator: true
+    })
+    Deno.test({
+        name: '02 - CxContinuous: Iterator should read a CONTINUOUS with no jobId supplied', 
+        fn: async () => {
+            let done = false
+            let count = 1
+            while ( ! done  ) {
+                let obj = await itor5.next() as IteratorResult<number> 
                 done = obj.done as boolean
                 if ( ! done ) {
                     let value: number  = obj.value[1]
