@@ -97,3 +97,42 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
             sanitizeOps: false
         })
 }
+
+{
+    @action<Array<F>>({
+        name: 'Fidel',
+        state: [{firstName: 'Federico', lastName: 'Fellini', job: 'Film Director', age: 73, sex: 'oh, yes' }, {firstName: 'Fidel', lastName: 'McDonald', job: 'President', age: 90, sex:'yes' } ],
+        init: true
+        })
+        class NameAndAge3 extends Action<F[]> {
+            constructor() {
+                super()
+            }
+            main = async (): Promise<boolean> => { 
+                this.update(  {lastName: 'Castro', age: 108, job: 'Deceased'} , 1 )
+                this.publish()
+                return true
+            }
+
+            nameAndAge = () => { console.log( JSON.stringify(this.state)) }
+        }
+        
+        let nameAndAge3: NameAndAge3 = await new NameAndAge3().register()
+        let res = await nameAndAge3.main()
+
+        Deno.test( {
+            name: '03 - Instance State Array can be updated via "update" Patial with an array index', 
+            fn: async () => {
+                expect(res).toEqual(true)
+                expect(nameAndAge3.state.lastName).toEqual('Castro')
+                expect(nameAndAge3.state.job).toEqual('Deceased')
+                expect(nameAndAge3.state.age).toEqual(108)
+                let state = ctrl.getState('Fidel') as F
+                expect(state.lastName).toEqual('Castro')
+                expect(state.job).toEqual('Deceased')
+                expect(state.age).toEqual(108)
+            },
+            sanitizeResources: false,
+            sanitizeOps: false
+        })
+}

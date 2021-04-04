@@ -35,7 +35,7 @@ export let setSwarmConf = ( key: string, _swarm: number,  _swarmMax: number | un
         setNodeConfig( key, { swarmSeed: swarmSeed, swarmMax: swarmMax })
     }
     catch(err) {
-        throw new CxError(__filename, 'setSwarm()', 'SWARM-0003', `Failed to set swarmCount due to: ${err}`)
+        throw new CxError(__filename, 'setSwarm()', 'SWARM-0003', `Failed to set swarmCount.`,err)
     }
 }
 

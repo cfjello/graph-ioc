@@ -350,3 +350,33 @@ export class NumList extends Action<number[]> {
         sanitizeOps: false
     })
 }
+
+{
+    let numList3 = await new NumList().register('NumList3')
+
+    await numList3.run()
+
+    let itor6 = new CxContinuous<number[]>( {
+        storeKey: 'NumList3', 
+        indexKey: -1,
+        nestedIterator: true
+    })
+    Deno.test({
+        name: '02 - CxContinuous: Iterator should read a CONTINUOUS with pre-existing publish and no jobId supplied', 
+        fn: async () => {
+            let done = false
+            let count = 1
+            while ( ! done  ) {
+                let obj = await itor6.next() as IteratorResult<number> 
+                done = obj.done as boolean
+                if ( ! done ) {
+                    let value: number  = obj.value[1]
+                    expect(value).toEqual(count++)
+                }
+            }
+            expect(count).toEqual(101)
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+}

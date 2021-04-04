@@ -1,10 +1,12 @@
-import { ctrl } from "../cxctrl/mod.ts"
+import Mutex from "https://deno.land/x/await_mutex/mod.ts"
+import { ctrl, Action } from "../cxctrl/mod.ts"
 import { _ , CxError} from "../cxutil/mod.ts"
 import { IteratorType, AsyncIterator } from "./interfaces.ts"
 
 const __filename = new URL('', import.meta.url).pathname;
 
 export class CxIterator<T,E = unknown> implements Iterator<T|E>{
+    // mutex                         = new Mutex();
     storeIndexList:      Array<number>
     currEntries?:        Iterator<any>
     indexKey: string
@@ -129,13 +131,15 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
 }
 
 
-export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
-    storeIndexList:      Array<number> = []
-    currEntries?:        Iterator<any>
+export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
+    mutex                         = new Mutex();
+    actionObj: Action<T>
+    storeIndexList: Array<number> = []
+    currEntries?: Iterator<any>
     indexKey: string
-    indexCounter: number         = 0
-    entryCounter:        number  = 0
-    allDone:             boolean = false
+    indexCounter: number          = 0
+    entryCounter: number          = 0
+    allDone: boolean              = false
     
     constructor( public config: Partial<IteratorType> ) {    
        try {
@@ -144,10 +148,11 @@ export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
             config.nestedIterator  = config.nestedIterator ?? false
             let noJobId            = (typeof config.indexKey === 'string' && config.indexKey  === '-1') || config.indexKey  === -1
             this.indexKey          = typeof config.indexKey === 'string' ? config.indexKey : `${config.indexPrefix}${config.indexKey}`
-            if ( !noJobId ) {
-                this.storeIndexList =  this.setStoreIndexList( this.indexKey!, config.storeKey! )
+            this.actionObj         = ctrl.actions.get(this.config.storeKey!)! 
+            if ( ! noJobId ) {
+                this.setStoreIndexList( this.indexKey!, config.storeKey! )
             }
-    }
+        }
        catch(err) {
             throw new CxError(__filename, 'CxContinuous.constructor()', 'STORE-0017', `Iterator indexKey: ${config.indexKey} or target: ${config.storeKey} failed`, err)
        }
@@ -157,18 +162,26 @@ export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
         return ! _.isUndefined(obj) && typeof obj[Symbol.iterator] === 'function';
     }
 
-    setStoreIndexList( indexKey: string, storeKey: string ): Array<number> {
-        let indexList = ctrl.store.index.get(indexKey)?.get(storeKey as string)
-        return indexList ?? []
+    setStoreIndexList( indexKey: string, storeKey: string ): void {
+        this.storeIndexList = ctrl.store.index.get(indexKey)?.get(storeKey as string)!
     }
 
     async getNextObjValues() {
         try {     
-            let actionObj = ctrl.actions.get(this.config.storeKey!)!      
-            await actionObj.run()
-            this.indexKey = 'J' + actionObj.currActionDesc.jobId
-            this.storeIndexList = this.setStoreIndexList( this.indexKey, this.config.storeKey as string )
-            this.indexCounter = 0
+            let preStoreId      = ctrl.store.getStoreId(this.actionObj.meta.name as string, -1)
+            await this.actionObj.run()
+            let postStoreId = ctrl.store.getStoreId(this.actionObj.meta.name as string, -1)
+            //
+            // Check if we published something new
+            //
+            if ( preStoreId === postStoreId ) {
+                this.allDone = true
+            }
+            else {
+                this.indexKey = 'J' + this.actionObj.getJobId()
+                this.setStoreIndexList( this.indexKey, this.config.storeKey as string )
+                this.indexCounter = 0
+            }
         }
         catch(err) {
             throw new CxError(__filename, 'CxContinuous.nextInStore()', 'STORE-0018', `Failed to run: ${this.config.storeKey!}`, err)
@@ -177,11 +190,21 @@ export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
     }
 
     async next(): Promise<IteratorResult<T> | IteratorResult<E>> {
-        if ( this.config.nestedIterator ?? false ) {
-            return await this.nextInEntry() as IteratorResult<E>    
+        const nextMutex = await this.mutex.acquire()
+        try {
+            
+            if ( this.config.nestedIterator ?? false ) {
+                return await this.nextInEntry() as IteratorResult<E>    
+            }
+            else {
+                return await this.nextInStore() as IteratorResult<T>  
+            }
         }
-        else {
-            return await this.nextInStore() as IteratorResult<T>  
+        catch(err) {
+            throw new CxError(__filename, 'CxContinuous.next()', 'STORE-0021', `Cannot retrieve next value.}`, err)
+        }
+        finally {
+             this.mutex.release(nextMutex)
         }
     }
 
@@ -191,16 +214,31 @@ export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
         let idx         = 0 
         // Go past any deleted entries
         do {
-            //
-            // If no more entries, then call run() on the storeKey item to try to get a next set of values published
-            // 
-            if ( _.isUndefined(this.storeIndexList) || this.indexCounter >= (this.storeIndexList ?? []).length ) {
+            //  If have read beyond the last storeId and need to fetch more - this can succeed and reach EOF
+            let noStoreIndex = _.isUndefined(this.storeIndexList)
+            let noIndexEntries = ( ! noStoreIndex && this.indexCounter >= (this.storeIndexList ?? []).length )
+
+            if ( ! this.allDone && this.entryCounter === 0 ) {
+                //
+                // Initially check, if the storeKey object has already published something
+                // If so, initialize the Iterator
+                // 
+                let storeId = ctrl.store.getStoreId(this.config.storeKey as string, -1)
+                if ( storeId > -1 ) { //  The object has published something                       
+                    this.indexKey = `${this.config.indexPrefix}${this.actionObj.getJobId()}`
+                    this.setStoreIndexList( this.indexKey, this.config.storeKey! )
+                }
+            } 
+            else if ( ! this.allDone && ( noStoreIndex || noIndexEntries ) ) { 
+                // 
+                // If no more entries, then call run() on the storeKey item to try to get a next set of values published
+                // 
                 await this.getNextObjValues()
             }
             //
             // Check for 'done', no more entries
             // 
-            if ( this.indexCounter >= (this.storeIndexList ?? []).length ) {
+            if ( this.allDone || this.indexCounter >= (this.storeIndexList ?? []).length ) {
                 done  = true
                 value = undefined
             }
@@ -215,7 +253,8 @@ export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
             }
         } while ( !done && _.isUndefined( value ) ) // Go past any deleted entries
 
-        return Promise.resolve( { value: [ idx++ , value as T] , done: done }  as IteratorResult<T> )
+        let result: IteratorResult<T> = { value: [ idx++ , value as T] , done: done }  as IteratorResult<T>
+        return Promise.resolve( result )
     }
 
     static getEntries<E>( _value: Iterable<any> | IteratorResult<any> | any ): IterableIterator<E> | undefined {
@@ -271,6 +310,10 @@ export class CxContinuous<T,E = unknown> implements AsyncIterator<T|E>{
                 //
                 if ( ! this.allDone && ! nextEntry.done ) nextEntry.value[0] = this.entryCounter++
             }
+            if ( nextEntry.done ) {
+                console.log(`NEXT: ${JSON.stringify(nextEntry)}`)
+            }
+           
            return Promise.resolve( nextEntry as IteratorResult<E> ) 
         }
         catch ( err ) {

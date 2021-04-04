@@ -24,7 +24,13 @@ let mac = (await getMac() as string).replace(/:/g,'')
 
 await log.setup({
     handlers: {
-      console:  new log.handlers.ConsoleHandler("DEBUG"),
+      console:  new log.handlers.ConsoleHandler("DEBUG", {
+        formatter: (logRecord) => {
+          let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": "${logRecord.msg}" }`
+          let msg = JSON.parse( msgJSON )      
+          return `${JSON.stringify(msg, undefined, 2)!}` as string
+        }
+      }),
       ctrlFile: new log.handlers.FileHandler("DEBUG", {
         filename: path.resolve(`${$logDir}/ctrl.log`),
         mode: 'a',
@@ -40,7 +46,7 @@ await log.setup({
           return `${JSON.stringify(logEntry)!}` as string
         }
       }),
-      perfFile: new log.handlers.FileHandler("INFO", {
+      perfFile: new log.handlers.FileHandler("DEBUG", {
         filename: path.resolve(`${$logDir}/perf.log`),
         mode: 'w',
         formatter: (perfRecord)  => {

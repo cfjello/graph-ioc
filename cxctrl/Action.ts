@@ -4,6 +4,12 @@ import { RunIntf , ActionDescriptor } from "./interfaces.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 
+//
+// Used by Action udate to infor the base type in case
+// the supplied type is an Array type
+//
+// type Unarray<S> = S extends Array<infer U> ? U : S;
+
 export abstract class Action<S> { 
     
     constructor(  state: S = {} as S) {
@@ -122,10 +128,13 @@ export abstract class Action<S> {
      * Update the state using a Partial type - this allows you to supply an Partial object that only contains the properties you want to update
      * @param updState A Partial version of the state object, only containing the updates
     */
-    update = ( updState: Partial<S> ): void  => {
+    update = ( updState: Partial<S>, idx: number = -1 ): void  => {
         try {
             if (! _.isArray(this.state) ) {
                 this.state = _.merge(this.state, updState)
+            }
+            else {
+                (this.state as unknown as Array<S>)[idx] = _.merge(( this.state as unknown as Array<S>)[idx] , updState)
             }
         }
         catch ( err ) {

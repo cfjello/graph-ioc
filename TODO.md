@@ -8,10 +8,12 @@
     - Ensure the correct execution order between @action, constructor() and botstrap() and actionFactory
     - Make it clear that Main can only return success or failure (and test that it does)
     - Implement Swarm : DONE
-      - Execution graph, add configuration, OK
-      - Publish event with arguments (which specific swarm object published?), DON'T
-      - Collect method, OK, same jobId and same storeName
+      - Execution graph, add configuration, DONE
+      - Publish event with arguments (showing which specific swarm object published?), DON'T
+      - Collect method, DONE, same jobId and same storeName
     - Threshold conflict resolution, Done
+- Swarm
+    - Test the setting of swarmName in bootstrap.ts, isSwarmMaster() etc.
 - Action 
     - The update function should be aware of state typeof Array - SKIPPED, Typescript thinks that Arrays should be immutable
     - Test the Array functionality SKIPPED , see above
@@ -20,11 +22,11 @@
     - test run()
     - fix and re-include the update function, DONE 
 - Store
-    - IMplement event base continuous iterator for action that does multiple publish() over time
+    - IMplement event base continuous iterator for action that does multiple publish() over time: DONE
     - Test unregister with removal of indexes -> Referred to jobRelease test above
-    - Remove jobId references from Store: OK
+    - Remove jobId references from Store: DONE
     - remove index prefix default - DON'T
-    - check if index exists before creating - OK
+    - check if index exists before creating - DONE
     - test functionality of other indexes than the job-index - TBD
     - Find some hash-freindly, but sortable, id type for jobIds - TBD
     - Also, test the creation of some other indexcies - TBD
@@ -33,10 +35,12 @@
     - Indexes, DONE
     - Interdependencies and conflict resolution for multiple jobs and indecies, DONE, via store object reference counters
     - Swarms, DONE 
-    - Read consistency when deleting: YES, via store object reference counters
+    - Read consistency when deleting: DONE, via store object reference counters
 - cxmeta, es6 data types:
     - check/test all type found in: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
     - Use the reflect-metadata package for the metadata
     - This could be a stand-alone package, that is generic javascript function for both Node and Deno
-    - 
+
+- Utils
+    - Revise the CxError.test.ts file to match the changed implementation and test for bugs
 

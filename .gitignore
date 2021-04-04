@@ -9,4 +9,4 @@ logs/ctrl.log
 logs/perf.log
 /lib
 /examples/headIsland
-/examples/GHCN-DAILY
+/examples/GHCN-DAILY/resources

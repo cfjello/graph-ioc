@@ -1,6 +1,6 @@
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
-import { CxStore, CxIterator  }  from "../cxstore/mod.ts"
+import { CxStore, CxIterator, CxContinuous  }  from "../cxstore/mod.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 import {$log, perf, ee, CxError, _ } from "../cxutil/mod.ts"
 import { RunIntf, ActionDescriptor, NodeConfiguration } from "./interfaces.ts"
@@ -26,7 +26,7 @@ export let p = perf
 //
 export let graph: CxGraph  = new CxGraph()
 export let actions         = new Map<string, Action<any>>() 
-export let iterators       = new Map<string, Map<string, CxIterator<any>>>() 
+export let iterators       = new Map<string, Map<string, (CxIterator<any> | CxContinuous<any>)>>() 
 // export let descriptors     = new Map<number, Map<string, ActionDescriptor>>()
 // export let promises        = new Map<string, Promise<any>>()
 
@@ -96,7 +96,42 @@ export function getIterator<T,E>( calleeStoreKey: string, storeKey: string, inde
         return  iterators.get( calleeStoreKey)!.get( storeKey )
     }
     catch(err) {
-        throw new CxError(__filename, 'getIterator()', 'CTRL-0010',`Failed to create iterator for ${storeKey}`, err)
+        throw new CxError(__filename, 'getIterator()', 'CTRL-0010',`Failed to create Iterator for ${storeKey}`, err)
+    }
+}
+
+/**
+ * Get an continous iterator for named stored object for a specific callee - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
+ * 
+ * @param calleeStoreKey  The Action storage storeName of the action requesting the iterator 
+ * @param storeKey        The store storeName of that you request an iterator for
+ * @param indexKey      The id of the index you want an iterator for - this will be prefixed with the indexPrefix (see below) to make up the index storeName
+ * @param nestedIterator If set to true, then each object fetched via the index will in turn be considered a iterable object with a next() that will return these values
+ * @param indexOffset    The index counter for accessing the index - setting this will allow you to traverse the index with an offset  
+ * 
+ * @return Iterator       An iterator for a list of a given type
+ */
+ export function getContinuous<T,E>( 
+     calleeStoreKey: string, 
+     storeKey: string, 
+     indexKey: number | string , 
+     nestedIterator: boolean = false, 
+     indexOffset = 0, 
+     indexPrefix: string = 'J' ) :  CxContinuous<T,E> {
+    try { 
+        if ( ! iterators.has( calleeStoreKey) ) iterators.set( calleeStoreKey, new Map<string,  CxContinuous<T,E>>() )
+        if ( ! iterators.get( calleeStoreKey)!.has( storeKey ) ) {
+            iterators.get( calleeStoreKey)!.set( storeKey, new CxContinuous( {
+                storeKey: storeKey, 
+                indexKey: indexKey, 
+                nestedIterator: nestedIterator, 
+                indexOffset: indexOffset, 
+                indexPrefix: indexPrefix } ) )
+        }
+        return  iterators.get( calleeStoreKey)!.get( storeKey ) as CxContinuous<T,E>
+    }
+    catch(err) {
+        throw new CxError(__filename, 'getContinuous()', 'CTRL-0010',`Failed to create Continuous Iterator for ${storeKey}`, err)
     }
 }
 

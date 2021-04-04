@@ -78,7 +78,7 @@ await emp.publish()
 // Fetch the metadata from the Data Store and write it to console
 // 
 
-emp.update( { lastName: 'NoHope', email: 'bob.hope@purgatory.com' } )
+emp.update( { lastName: 'NoHope', email: 'bob.hope@purgatory.com' }, 1 )
 
 emp.show()
 
