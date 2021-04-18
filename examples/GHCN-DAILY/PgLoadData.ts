@@ -1,19 +1,15 @@
 import { Client } from "https://deno.land/x/postgres/mod.ts";
+// import { QueryObjectResult } from "https://deno.land/x/postgres/query/query.ts"
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
-import { delay } from 'https://deno.land/x/delay/delay.js'
+import { delay }   from "https://deno.land/std/async/delay.ts"
+import { parse as parseCsv } from 'https://deno.land/std@0.82.0/encoding/csv.ts';
 import { ctrl, Action, action } from "../../cxctrl/mod.ts"
 import { CxContinuous } from "../../cxstore/mod.ts"
 import { CxError } from "../../cxutil/mod.ts"
 import { _ } from "../../cxutil/mod.ts"
-import { LoadListType, ConfigType, ColumnDefType, TablesDefType, RepeatingGroupType } from "./interfaces.ts"
-// import { ConnectionPool, PoolClient } from "./PgConnPool.ts"
-// import { LoadList } from "./LoadList.ts"
-// import { PgTables, tables } from "./PgTables.ts"
+import { LoadListType, ConfigType, ColumnDefType, TablesDefType, RepeatingGroupType, HttpHeaderType } from "./interfaces.ts"
+import { LoadList } from "./LoadList.ts"
 import { config } from "./config.ts"
-// import { existsSync } from "https://deno.land/std/fs/mod.ts"
-
-// import { pgManager, PgClient } from "./PgManager.ts";
-
 
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 
@@ -26,7 +22,6 @@ export class PgLoadData extends Action<LoadListType> {
     // private conn =   ConnectionPool.getInstance() 
     static itor: CxContinuous<LoadListType[],LoadListType>
     
-
     initCap = function( str: string ): string {
         return str.charAt(0).toUpperCase() + str.slice(1)
     } 
@@ -56,26 +51,31 @@ export class PgLoadData extends Action<LoadListType> {
     }
 
     async cleanup() {
-        let client: Client = this.getClient()
-        await client.connect()
-        try {
-            let result = await client.queryObject(`DELETE FROM Measurements WHERE FILE_ID IN ( SELECT id FROM load_list WHERE started IS NOT NULL AND ended IS NULL )`)
-            console.log( `DELETED Measurements INCOMPLETE LOADED ROWS, num of. rows: ${result.rowCount}`)
-            await client.queryObject(`UPDATE load_list SET started = NULL WHERE started IS NOT NULL AND ended IS NULL`)
-
-        }
-        catch(err) {
-            throw new CxError( __filename, 'PgLoadData.cleanup()', 'LOAD-0005',`Failed to cleanup the tables.`, err)
-        }
-        finally {
-            client.end()
+        let pgTableStations: TablesDefType = ( ctrl.getStateData("PgTables") as unknown as Map<string,TablesDefType> )!.get('Stations')! 
+        let initialized = pgTableStations.initialized!
+        if ( initialized ) {
+            let client: Client = this.getClient()
+            await client.connect()
+            try {
+                let result = await client.queryObject(`DELETE FROM Measurements WHERE MEASURE_ID IN ( SELECT ID FROM Measure WHERE FILE_ID IN ( SELECT id FROM load_list WHERE started IS NOT NULL AND ended IS NULL ) )`)
+                console.log( `DELETED Measurements INCOMPLETE LOADED ROWS, num of. rows: ${result.rowCount}`)
+                result = await client.queryObject(`DELETE FROM Measure WHERE FILE_ID IN ( SELECT id FROM load_list WHERE started IS NOT NULL AND ended IS NULL )`)
+                console.log( `DELETED Measure INCOMPLETE LOADED ROWS, num of. rows: ${result.rowCount}`)
+                await client.queryObject(`UPDATE load_list SET started = NULL WHERE started IS NOT NULL AND ended IS NULL`)
+            }
+            catch(err) {
+                throw new CxError( __filename, 'PgLoadData.cleanup()', 'LOAD-0005',`Failed to cleanup the tables.`, err)
+            }
+            finally {
+                client.end()
+            }
         }
     }
 
     async loadTxtFile( fileEntry: LoadListType, client: Client) {
         let baseName  = path.basename(fileEntry.filepath)
         let tableName = this.initCap( baseName.replace(/^ghcnd-/, '').replace(/\.txt$/, '' ) ) 
-        let filePath =  path.normalize(`${config.staging.stageDir}/files/${baseName}`)
+        let filePath =  path.normalize(`${config.staging.stageDir}/textFiles/${baseName}`)
         try  {
             let tables  =  ctrl.getStateData<Map<string, TablesDefType>>('PgTables')
             let parseLine: Function = new Function( ...tables.get(tableName)!.readTmpl! )
@@ -96,118 +96,81 @@ export class PgLoadData extends Action<LoadListType> {
         }
     }
 
-
-    validate( m: any[] ): boolean {
-        let validated = false
+    async loadDailyHttp ( fileEntry: LoadListType, client: Client ) {
+        let baseName = path.basename(fileEntry.filepath)
+        let filePath = path.normalize(`${config.staging.stageDir}/files/${baseName}`) 
+        let ignore = [ 'STATION', 'DATE', 'LATITUDE', 'LONGITUDE', 'NAME', 'ELEVATION' ]  
+        let counter  = 0
+        let ID       = -1 
         try {
-            validated = ( m.length === 13 )
-            m.forEach( ( val, idx) => {
-                validated = validated && !_.isUndefined(val)
-                if ( !validated ) return
-                if ( idx === 4 || idx === 5 || idx === 7 || idx === 11 || idx === 12 ) {
-                    validated = validated && ( val === 'NULL' || val === '' || ! ( Number.isNaN(Number.parseFloat(val)) ) )
-                    if ( !validated ) console.log(`Column: ${idx} = ${val} failed number test`)
-                }
-                else {
-                    validated = validated && ( val === 'NULL' || val === '' || val.match(/^'.*'$/) )
-                    if ( !validated ) console.log(`Column: ${idx} = ${val} failed string test`)
-                }
-                if ( !validated ) return
-            })
-        }
-        catch( err ) {
-            console.log(err)
-            validated = false
-        }
-        return validated
-    }
-
-    async loadDaily( fileEntry: LoadListType, client: Client ) {
-        let baseName  = path.basename(fileEntry.filepath)
-        let filePath = path.normalize(`${config.staging.stageDir}/files/${baseName}`)
-        
-        try  {
-            let sharedCols: string[] 
-            let batchStmtBundle: string[] = []
-            let tables = ctrl.getStateData<Map<string, TablesDefType>>('PgTables')
-
-            let parseMeasures: Function = new Function( ...tables.get('Measurements')!.readTmpl! )
-            let insertPrefix: string = tables.get('Measurements')!.insert!
-            let lines: string[] = await this.readFile( filePath )
-
-            await client.queryObject(`UPDATE load_list SET started = now() WHERE id = ${fileEntry.id}`)
-
-            lines.forEach( async ( line, index ) => {
-                let insert: string[] = []
-                let row = parseMeasures(line)
-
-                let elems: any[] = [ row.ID, row.COUNTRY, row.NETC, row.STID, row.YEAR, row.MONTH, row.ELEMENT ]
-                
-                if ( row.ID !== `"''"` && row.ID !== `''`  ) { // Avoid empty row entries
-                    // let insStmt =  elems.join(',').replace(/,,/mg, ',NULL,') 
-
-                    let values = Object.values(row).map(col => col === "''" || col === undefined || col === null ? "NULL": col )
-                    for( let offset = 7, i = 1 ; i < 32; i++, offset += 5 ) {
-                        let isEmpty = true
-                        let uniqCols = values.slice(offset, offset + 5 ) as string[]
-                        //
-                        // Move the DAY column to the end 
-                        //
-                        uniqCols.push(uniqCols[0])
-                        //
-                        // Fix empty column value bug in the data
-                        //
-                        if ( _.isUndefined(uniqCols[1]) ) uniqCols[1] = "NULL"
-                        //
-                        // Add the fileEntry.id
-                        //
-                        let uniqCols2 = elems.concat( uniqCols.slice(1) )
-                        uniqCols2.push( `${fileEntry.id}` )
-
-                        if ( this.validate(uniqCols2) ) {
-                            insert.push(' (' +  uniqCols2.join(',').replace(/,,/mg, ',NULL,').replace(/\-9999/mg, 'NULL').replace(/,\s*''\s*,/mg,',NULL,') + ')' )
-                        }
-                        else {
-                            console.error(`Bad row: ${uniqCols2}`)
-                        }
-                    } 
-                    let result = {}
-                    let insertStmt = insertPrefix + insert.join(',')
-                    let reConnects = 0
-                    while ( reConnects < 2 ) {
-                        try {
-                            result = await client.queryObject( insertStmt )
-                        }
-                        catch(err) {
-                            //
-                            // Try to reset connection 
-                            //
-                            reConnects++
-                            if ( reConnects < 3 ) {
-                                try { 
-                                    try { client.end() } catch {} // Ignore
-                                    await delay(2000)
-                                    await client.connect()
-                                    console.log(`RE-CONNECT: ${this.meta.swarmName ? this.meta.swarmName: this.meta.name}`)
-                                } 
-                                catch(err) {
-                                    if ( reConnects < 3 )  throw new CxError( __filename, 'PgLoadData.loadDaily()', 'LOAD-0006',`Insert failed for ${insertStmt}`, err)
-                                }   
-                            }
-                            else throw new CxError( __filename, 'PgLoadData.loadDaily()', 'LOAD-0006',`Insert failed for ${insertStmt}`, err)
-                        }
+            let lines = await parseCsv(await Deno.readTextFile(filePath), { skipFirstRow: true } )
+            let result = await client.queryObject( `select nextval('MEASURE_id_seq')` )
+            let idx   = 0 
+            lines.forEach( async ( entry ) => {
+                // console.log( entry)
+                let ent = entry as unknown as HttpHeaderType 
+                const STATION   = ent.STATION.trim()
+                const DATO      = ent.DATE.trim()
+                const LATITUDE  = ent.LATITUDE
+                const LONGITUDE = ent.LONGITUDE
+                const ELEVATION = ent.ELEVATION
+                const NAME      = ent.NAME.trim()
+                let COUNTRY     = NAME.substring( NAME.trim().lastIndexOf(',') + 1).trim()
+                if ( idx++ === 0 ) {
+                    try {
+                        let sqlStmt = `INSERT INTO Measure VALUES ( ${result.rows[0].nextval as number} , '${STATION}', ${LATITUDE}, ${LONGITUDE}, ${ELEVATION}, '${NAME.substring(0, NAME.lastIndexOf(',')).trim()}', '${COUNTRY}', ${fileEntry.id} )`
+                        await client.queryObject( sqlStmt )
                     }
-                }   
+                    catch(err) {
+                        console.error( `FAILED to Measure insert:` + JSON.stringify(result)  )
+                        throw new Error(err)
+                    }
+                }               
+                let value: number | string | undefined
+                let inserts: string[] = []
+                for ( const [key, val] of Object.entries( entry as Object ) ) {
+                    if ( ignore.includes(key) || key.lastIndexOf('_ATTRIBUTES') > 0 ) continue
+                    //
+                    // Here we handle the actual value fields
+                    //
+                    value = val !== undefined && val.trim().length > 0 ? parseInt(val.trim()) : 'NULL'
+                    if ( value !== 'NULL' ) {
+                        //
+                        // Handle the attributes
+                        //
+                        let attr: string[] = []
+                        for ( const [attrKey, attrVal] of Object.entries( entry as Map<string,string|number> ) ) {
+                            if ( ignore.includes(key) ) continue
+                            if ( attrKey === `${key}_ATTRIBUTES` ) {
+                                (attrVal as string).split(',').forEach( (v: string) => attr.push ( v === undefined || v.length <= 0  ? 'NULL' : `'${v}'` ) )
+                                break
+                            }
+                        }
+                        // Build the insert stmt
+                        //
+                        inserts.push( `( ${result.rows[0].nextval as number}, '${STATION}', TO_DATE('${DATO}','YYYY-MM-DD'), '${key}', ${value}, ${attr[0]}, ${attr[1]}, ${attr[2]} )` )
+                    }
+                } 
+
+                if ( inserts.length > 0 ) {
+                    try {
+                        await client.queryObject(`INSERT INTO Measurements VALUES ` + inserts.join(',') )
+                    }
+                    catch(err) {
+                        console.error( `FAILED to insert:` + inserts.join(',') )
+                        throw err
+                    }
+                }
             })
-            let result = await client.queryObject(`UPDATE load_list SET ended = now(), success = true WHERE id = ${fileEntry.id}`)
-            // if ( result.error )      
-            //     throw new Error(result.error + ' ' + result.statement )
+            await client.queryObject(`UPDATE load_list SET ended = now(), success = true WHERE id = ${fileEntry.id}`)
+            console.log(` DONE: ${fileEntry.id} , ${path.basename(fileEntry.filepath)}` )
         }
         catch(err) {
-                throw new CxError( __filename, 'PgLoadData.loadDaily()', 'LOAD-0004',`Failed to build load daily file for ${filePath}.`, err)
+            throw new CxError( __filename, 'PgLoadData.loadDailyHttp()', 'LOAD-0006',`Failed to build load daily file for ${filePath}.`, err)
         }
-    }
 
+    }
+   
     async main() {
         let client: Client = this.getClient()
         let filecount = 0
@@ -220,7 +183,7 @@ export class PgLoadData extends Action<LoadListType> {
                 let fileEntry = obj.value[1] as LoadListType
                 let objName = this.meta.swarmName ? this.meta.swarmName: this.meta.name
 
-                console.log(` ${objName} LOADING: ${fileEntry.id} , ${fileEntry.filepath}` )
+                console.log(` ${objName} LOADING: ${fileEntry.id} , ${path.basename(fileEntry.filepath)}` )
 
                 let result = await client.queryObject(`UPDATE load_list SET started = now() WHERE id = ${fileEntry.id}`)
                 // if ( result.error ) throw new Error(result.error)
@@ -228,14 +191,8 @@ export class PgLoadData extends Action<LoadListType> {
                 if ( fileEntry.filepath.endsWith('.txt') ) {
                     await this.loadTxtFile( fileEntry, client)
                 }
-                if ( fileEntry.filepath.endsWith('.dly') ) {
-                    /*
-                    if ( ++filecount % 20 === 0 ) { // To avoid timeout 
-                        await client.end()
-                        await client.connect()
-                    }
-                    */ 
-                    await this.loadDaily( fileEntry, client )
+                if ( fileEntry.filepath.endsWith('.csv') ) {
+                    await this.loadDailyHttp( fileEntry, client )
                 }
             } 
             console.log(`Exit due to no more itorater entries`)

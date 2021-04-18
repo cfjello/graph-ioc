@@ -1,14 +1,10 @@
 import { Client } from "https://deno.land/x/postgres/mod.ts";
-// import { pgManager, PgClient } from "./PgManager.ts"
-// import { Client } from "https://deno.land/x/postgres/mod.ts";
-// import { repeat } from "https://deno.land/std@0.81.0/bytes/mod.ts";
 import { ctrl, Action, action } from "../../cxctrl/mod.ts"
 import { CxError } from "../../cxutil/mod.ts"
 import { _ } from "../../cxutil/mod.ts"
 import { config } from "./config.ts"
 import { ColumnDefType, TablesDefType, RepeatingGroupType } from "./interfaces.ts"
-
-import { ghcnCodes, ghcnCodesInsert, loadList } from "./PgExtraTables.ts"
+import { ghcnCodes, ghcnCodesInsert, loadList, measure, measurements } from "./PgExtraTables.ts"
 
 const __filename = new URL('', import.meta.url).pathname;
 
@@ -61,7 +57,7 @@ tables.set( 'Inventory', {
     cols:    new Map<string,ColumnDefType>()
 })
 
-tables.set( 'Measurements', {
+tables.set( 'MeasurementsOld', {
     file: 'all',
     txt:   
        `ID            1-11   VARCHAR
@@ -195,6 +191,8 @@ export class PgTables extends Action<Map<string,TablesDefType>>{
     async dropTables( client: Client) {
         let tableNames = [ ...tables.keys() ]
         tableNames.push('ghcn_codes')
+        tableNames.push('measure')
+        tableNames.push('measurements')
         if ( ! this.keepLoadList ) {
             tableNames.push( 'load_list' ) 
         }
@@ -240,16 +238,24 @@ export class PgTables extends Action<Map<string,TablesDefType>>{
             // console.log(sqlCmd)
             this.state.get(table)!.table  = sqlCmd
             this.state.get(table)!.insert = insCmd.replace('(,', '(')
+            //
+            // add information on whether the table is initilized or not
+            //
+            this.state.get(table)!.initialized = this.keepLoadList
             // console.log(this.state.get(table)!.insert)
         }
     }
 
     async createTables(client: Client) {
         try {
+            console.log(`CREATE TABLE Measure`)
+            await client.queryObject(measure)
+            console.log(`CREATE TABLE Measurements`)
+            await client.queryObject(measurements)
             if ( ! this.keepLoadList ) {
                 console.log(`CREATE TABLE Loadlist`)
                 // await this.client.queryArray(loadList)
-                await await client.queryObject(loadList)
+                await client.queryObject(loadList)
             }
             console.log(`CREATE TABLE GhcnCodes`)
         

@@ -15,6 +15,14 @@ export type FtpListType = {
     fileList: string[]
 }
 
+export type HttpListType = {
+    fileName:   string,
+    timeStamp:  string,
+    size:       string,
+    status?:    boolean
+}
+
+
 export type ColumnDefType = {
     type:       string,
     length:     number,
@@ -22,12 +30,13 @@ export type ColumnDefType = {
 }
 
 export type TablesDefType = { 
-    file:       string, 
-    txt:        string, 
-    cols:       Map<string,ColumnDefType>, 
-    readTmpl?:  string[],
-    table?:    string,
-    insert?:   string
+    file:           string, 
+    txt:            string, 
+    cols:           Map<string,ColumnDefType>, 
+    initialized?:   boolean,
+    readTmpl?:      string[],
+    table?:         string,
+    insert?:        string
 }
 
 export type RepeatingGroupType = {
@@ -53,12 +62,20 @@ export type FtpConf = {
 }
 
 export type Staging = {
-        stageDir: string
+    stageDir:  string
+    files:     string,
+    textFiles: string
+}
+
+export type HttpConf = {
+    url:    string,
+    txtUrl: string
 }
 
 export type ConfigType = {
     dbConf : ConnPoolConfigType, 
     ftpConf: FtpConf,
+    httpConf: HttpConf,
     staging: Staging
 }
 
@@ -68,4 +85,14 @@ export type LoadListType = {
     started?: Date,
     ended?:   Date,
     success?: boolean
+}
+
+export type HttpHeaderType = {
+    STATION:   string,
+    DATE:      string,
+    LATITUDE:  number,
+    LONGITUDE: number,
+    ELEVATION: number,
+    NAME:      string,
+    ID:        number 
 }

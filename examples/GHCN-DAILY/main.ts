@@ -1,12 +1,8 @@
 import { Action, action, swarm } from "../../cxctrl/mod.ts"
-import FTPClient from "https://deno.land/x/ftpc@v1.1.0/mod.ts"
 import { CxError, _  } from "../../cxutil/mod.ts"
-import { config } from "./config.ts"
-import { FtpFetchObjectType } from "./interfaces.ts"
 import { PgTables  }  from "./PgTables.ts"
-import { FtpList }    from "./FtpList.ts"
-import { FtpFetch }   from "./FtpFetch.ts"
-import { LoadList }   from "./PgLoadList.ts"
+import { FileList }   from "./FileList.ts"
+import { LoadList }   from "./LoadList.ts"
 import { PgLoadData } from "./PgLoadData.ts"
 
 
@@ -16,29 +12,23 @@ try {
     //
     // Create the tables
     // 
-    let pgTables = await new PgTables(true, true).register()
-    let loadList = await new LoadList().register()
-
-    //
-    // Loading the temperature data files
-    //
-    let ftpList =  await new FtpList().register()
-    let ftpFetch = await new FtpFetch().register()
-    await ftpFetch.setDependencies('FtpList')
-    
-    swarm.setSwarmConf('FtpFetch', 4, 4)
-    await swarm.addSwarm('FtpFetch', FtpFetch )
-    ftpFetch.run()
-
+    let pgTables = await new PgTables(true).register()
+    // pgTables.run()
     // 
     // Parse the files and load the data to the database
     // 
+    let fileList = await new FileList().register()
+    fileList.setDependencies( 'PgTables' )
+
+    let loadList = await new LoadList().register()
+    loadList.setDependencies( 'FileList' )
+
     let pgLoadData = await new PgLoadData().register()
     await pgLoadData.cleanup()
     
-    pgLoadData.setDependencies('PgTables', 'LoadList')
+    pgLoadData.setDependencies( 'LoadList' )
 
-    swarm.setSwarmConf('PgLoadData', 40, 40)
+    swarm.setSwarmConf('PgLoadData', 10, 10)
     await swarm.addSwarm('PgLoadData', PgLoadData )
 
     await pgLoadData.run()

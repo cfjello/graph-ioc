@@ -2,7 +2,7 @@ import {ctrl, Action, action } from '../mod.ts'
 import { $log, $plog } from '../../cxutil/mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 // import {ActionDescriptor, ActionDescriptorIntf} from "./interfaces.ts"
-// import { delay } from 'https://deno.land/x/delay/delay.js'
+// import { delay } from 'https://deno.land/x/mod.js'
 
 // import * as _ from 'lodash'
 

@@ -1,7 +1,5 @@
 import { action, Action } from "../../cxctrl/mod.ts"
 import { LoadListType } from "./interfaces.ts"
-// import { ConnectionPool }  from "./PgConnPool.ts"
-// import { pgManager, PgClient } from "./PgManager.ts"
 import { config } from "./config.ts"
 import { Client } from "https://deno.land/x/postgres/mod.ts";
 import { _, CxError} from "../../cxutil/mod.ts"

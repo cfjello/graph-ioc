@@ -241,6 +241,29 @@ export let loadList = `CREATE TABLE IF NOT EXISTS LOAD_LIST (
     success  BOOLEAN DEFAULT false
 )`
 
+export let measure = `CREATE TABLE IF NOT EXISTS MEASURE ( 
+    ID         SERIAL,
+    STATION    VARCHAR(11),
+    LATITUDE   double precision NOT NULL,
+    LONGITUDE  double precision NOT NULL,
+    ELEVATION  double precision,
+    NAME       VARCHAR(30),
+    COUNTRY    VARCHAR(2),
+    FILE_ID    integer 
+)
+WITH (autovacuum_enabled=false) `
+
+export let measurements = `CREATE TABLE IF NOT EXISTS MEASUREMENTS (
+    MEASURE_ID integer,
+    STATION    VARCHAR(11),
+    MDATE      DATE NOT NULL,
+    CODE       VARCHAR(4),
+    VALUE      integer,
+    MFLAG      CHAR(1),
+    QFLAG      CHAR(1),
+    SFLAG      CHAR(1)
+)
+WITH (autovacuum_enabled=false) `
 
 
 /*

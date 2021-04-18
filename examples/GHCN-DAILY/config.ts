@@ -13,9 +13,15 @@ export let  config: ConfigType = {
     },
     ftpConf: {
         server:          'ftp.ncdc.noaa.gov',
-        directory:       'pub/data/ghcn/daily/'
+        directory:       'pub/data/ghcn/'
+    },
+    httpConf: {
+        url:            'https://www.ncei.noaa.gov/data/global-historical-climatology-network-daily/access',
+        txtUrl:         'https://www1.ncdc.noaa.gov/pub/data/ghcn/daily/'
     },
     staging: {
-        stageDir: 'D:/GHCN-DAILY'
+        stageDir: 'D:/GHCN-DAILY',
+        files: 'D:/GHCN-DAILY/files',
+        textFiles: 'D:/GHCN-DAILY/textFiles',
     }
 }

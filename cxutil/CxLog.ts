@@ -31,7 +31,7 @@ await log.setup({
           return `${JSON.stringify(msg, undefined, 2)!}` as string
         }
       }),
-      ctrlFile: new log.handlers.FileHandler("DEBUG", {
+      ctrlFile: new log.handlers.FileHandler("ERROR", {
         filename: path.resolve(`${$logDir}/ctrl.log`),
         mode: 'a',
         formatter: (logRecord) => {
@@ -69,7 +69,7 @@ await log.setup({
         handlers: ["console", "ctrlFile" ],
       },
       perf: {
-        level: "INFO",
+        level: "DEBUG",
         handlers: ["perfFile"],
       }
     },
