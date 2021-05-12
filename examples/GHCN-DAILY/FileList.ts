@@ -34,7 +34,6 @@ export class FileList extends Action<string[]> {
                     // await client.queryObject( `INSERT INTO load_list VALUES ( DEFAULT, '${dirEntry.name}', NULL, NULL, FALSE )` )
                     this.state.push(dirEntry.name); 
                 }
- 
             }
 
             for await (const dirEntry of Deno.readDir( config.staging.files ) ) {
@@ -61,6 +60,7 @@ export class FileList extends Action<string[]> {
             throw new CxError( __filename, 'FileList', 'FILE-0001',`FileList.main() failed.`, err)
         }
         finally {
+            // await client.queryObject( `INSERT INTO load_list VALUES ( DEFAULT, 'FILELIST', NOW(), NOW(), FALSE )` ) 
             this.publish()
             client.end()
         }

@@ -73,7 +73,7 @@ emp.addEmployee( {
 //
 // Now publish the data to the Data Store
 //
-await emp.publish()
+emp.publish()
 //
 // Fetch the metadata from the Data Store and write it to console
 // 

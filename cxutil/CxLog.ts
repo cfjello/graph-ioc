@@ -24,14 +24,19 @@ let mac = (await getMac() as string).replace(/:/g,'')
 
 await log.setup({
     handlers: {
-      console:  new log.handlers.ConsoleHandler("DEBUG", {
+      console:  new log.handlers.ConsoleHandler("INFO", {
         formatter: (logRecord) => {
           let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": "${logRecord.msg}" }`
-          let msg = JSON.parse( msgJSON )      
-          return `${JSON.stringify(msg, undefined, 2)!}` as string
+          let msg = JSON.parse( msgJSON )   
+          let logEntry = _.merge ( { 
+            level: logRecord.levelName, 
+            date: logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')   , 
+          }, msg )       
+          return `${JSON.stringify(logEntry, undefined, 2 )!}` as string
+          // return `${JSON.stringify(msg, undefined, 2)!}` as string
         }
       }),
-      ctrlFile: new log.handlers.FileHandler("ERROR", {
+      ctrlFile: new log.handlers.FileHandler("DEBUG", {
         filename: path.resolve(`${$logDir}/ctrl.log`),
         mode: 'a',
         formatter: (logRecord) => {
@@ -46,7 +51,7 @@ await log.setup({
           return `${JSON.stringify(logEntry)!}` as string
         }
       }),
-      perfFile: new log.handlers.FileHandler("DEBUG", {
+      perfFile: new log.handlers.FileHandler("INFO", {
         filename: path.resolve(`${$logDir}/perf.log`),
         mode: 'w',
         formatter: (perfRecord)  => {
@@ -69,7 +74,7 @@ await log.setup({
         handlers: ["console", "ctrlFile" ],
       },
       perf: {
-        level: "DEBUG",
+        level: "INFO",
         handlers: ["perfFile"],
       }
     },

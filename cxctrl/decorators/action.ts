@@ -10,10 +10,19 @@ export function action<S>( config: ActionConfigType<S> ) {
             // Set the meta data
             // 
             let meta = {
-                name: config.name,
-                funcName: _.isUndefined(config.ctrl) ? 'main' : config.ctrl as string,
-                init: _.isUndefined(config.init) ? false : config.init,
-                className: constructor.name
+                name:       config.name,
+                funcName:   _.isUndefined(config.ctrl) ? 'main' : config.ctrl as string,
+                init:       _.isUndefined(config.init) ? false : config.init,
+                className:  constructor.name,
+            }
+
+            let swarm = {
+                swarmName:  config.name,
+                canRun:     true,
+                canDispose: false,
+                swarmLsnr:  undefined,
+                children:   undefined,
+                isMaster:   () => true
             }
             // 
             // Create the new constructor behaviour

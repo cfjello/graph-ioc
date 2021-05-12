@@ -1,15 +1,19 @@
 import { ConfigType } from "./interfaces.ts"
+export { config } from "./config.secret.ts"
 
-
+/* 
+* Example configuration for GHCN-DAILY
+*/
+/*
 export let  config: ConfigType = {
     dbConf: {
-        applicationName: 'ghcn_dw',
-        user:            'ghcn',
-        password:        'Strange67',
-        database:        'ghcn',
-        hostname:        '204.2.195.225',
-        port:             21954,
-        POOL_CONNECTIONS: 30
+        applicationName: 'some_dw',
+        user:            'yourUserName',
+        password:        'yourPassword',
+        database:        'yourDatabaseName',
+        hostname:        'yourDatabaseIP',
+        port:             99999, // Your Database Port
+        POOL_CONNECTIONS: 30 
     },
     ftpConf: {
         server:          'ftp.ncdc.noaa.gov',
@@ -25,3 +29,4 @@ export let  config: ConfigType = {
         textFiles: 'D:/GHCN-DAILY/textFiles',
     }
 }
+*/

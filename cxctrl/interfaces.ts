@@ -1,4 +1,5 @@
 import {Action} from "./Action.ts"
+import EventEmitter from "https://raw.githubusercontent.com/denolibs/event_emitter/master/lib/mod.ts"
 
 export type NodeConfiguration = {
     jobThreshold: number,
@@ -60,7 +61,39 @@ export type MetaType = ConfigMetaType & {
     callCount:      number, 
     className?:     string, 
     funcName?:      string,  
-    swarmChildren?: string[]
+    // swarmChildren?: string[],
+    // canRun?:        boolean,
+    // canDispose?:    boolean,
+    // swarmLsnr?:     any
+}
+
+export interface SwarmIntf  {
+    swarmName:  string | undefined,
+    canRun:     boolean,
+    canDispose: boolean,
+    swarmLsnr: EventEmitter | undefined,
+    children:   string[] | undefined,
+    isMaster(): boolean,
 }
 
 
+export type IteratorConfType = {
+    callee: string, 
+    target: string, 
+    nestedIterator: boolean, 
+    continuous: boolean,
+    indexKey: number | string , 
+    indexOffset: number, 
+    indexPrefix: string
+}
+
+/* for future use
+export type SwarmConfigType = {
+    actionName: string, 
+    swarmSize: number,
+    swarmMin?: number,  
+    swarmMax?: number | undefined,
+    rewardFunc?: function | undefined,
+    algorithm?:   'binary' | 'Binary' | 'stepwise' | 'Stepwise' | undefined
+}
+*/ 

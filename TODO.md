@@ -13,16 +13,24 @@
       - Collect method, DONE, same jobId and same storeName
     - Threshold conflict resolution, Done
 - Swarm
-    - Test the setting of swarmName in bootstrap.ts, isSwarmMaster() etc.
+    - Refactor swarm paramater with Action object - DONE
+    - Test the setting of swarmName in bootstrap.ts, isMaster() etc. - OK 
+    - Add/remove adn dispose of single swarm objects
+    - Reward function for the Swarm-master TB Implemented for dynamic throttling of the number of swarm objects
 - Action 
     - The update function should be aware of state typeof Array - SKIPPED, Typescript thinks that Arrays should be immutable
     - Test the Array functionality SKIPPED , see above
     - The main() should be restricted to allways returning true or false
-    - test getCollection()
+    - reinstate and test getCollection() - TBD
     - test run()
     - fix and re-include the update function, DONE 
+- Iterators
+    - Implement ctrl shared iterators for swarms - DONE
+    - Implement ctrl continuous iterators - DONE
+    - Implement removeIterator() 
+    - itorator parameter indexOffset to be implemented
 - Store
-    - IMplement event base continuous iterator for action that does multiple publish() over time: DONE
+    - Implement event base continuous iterator for action that does multiple publish() over time: DONE
     - Test unregister with removal of indexes -> Referred to jobRelease test above
     - Remove jobId references from Store: DONE
     - remove index prefix default - DON'T
@@ -40,7 +48,7 @@
     - check/test all type found in: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects
     - Use the reflect-metadata package for the metadata
     - This could be a stand-alone package, that is generic javascript function for both Node and Deno
-
 - Utils
     - Revise the CxError.test.ts file to match the changed implementation and test for bugs
+    - Fix the Performance logging config
 

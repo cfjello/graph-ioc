@@ -10,9 +10,9 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
     storeIndexList:      Array<number>
     currEntries?:        Iterator<any>
     indexKey: string
-    indexCounter: number         = 0
-    entryCounter:        number  = 0
-    allDone:             boolean = false
+    indexCounter: number  = 0
+    entryCounter  = 0
+    allDone       = false
     
     constructor( public config: Partial<IteratorType> ) {    
        try {
@@ -57,6 +57,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
                 //
                 // get next entry
                 //
+                // deno-lint-ignore prefer-as-const
                 let storeId = this.storeIndexList[this.indexCounter++ ]
                 if ( ! _.isUndefined( storeId ) && ctrl.store.hasStoreId(this.config.storeKey!, storeId)) {
                     value = done ? undefined : ctrl.store.get( this.config.storeKey!, storeId ) as T
@@ -81,6 +82,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
     }
 
     nextInEntry(): IteratorResult<E> { 
+        // deno-lint-ignore no-explicit-any
         let nextInStore: IteratorResult<any>
         try {
             //
@@ -93,6 +95,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
                 }
             }
 
+            // deno-lint-ignore no-explicit-any
             let nextEntry = { value: undefined, done: true} as IteratorResult<any>
             
             if ( ! this.allDone ) {
@@ -136,10 +139,10 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
     actionObj: Action<T>
     storeIndexList: Array<number> = []
     currEntries?: Iterator<any>
-    indexKey: string
+    indexKey:     string
     indexCounter: number          = 0
     entryCounter: number          = 0
-    allDone: boolean              = false
+    allDone:      boolean         = false
     
     constructor( public config: Partial<IteratorType> ) {    
        try {
@@ -227,9 +230,11 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
                 if ( storeId > -1 ) { //  The object has published something                       
                     this.indexKey = `${this.config.indexPrefix}${this.actionObj.getJobId()}`
                     this.setStoreIndexList( this.indexKey, this.config.storeKey! )
+                    noStoreIndex   = false
+                    noIndexEntries = ( ! noStoreIndex && this.indexCounter >= (this.storeIndexList ?? []).length )
                 }
             } 
-            else if ( ! this.allDone && ( noStoreIndex || noIndexEntries ) ) { 
+            if ( ! this.allDone && ( noStoreIndex || noIndexEntries ) ) { 
                 // 
                 // If no more entries, then call run() on the storeKey item to try to get a next set of values published
                 // 
@@ -304,7 +309,6 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
                         this.allDone = true
                     }
                 }
-
                 //
                 // Provide continuous index
                 //

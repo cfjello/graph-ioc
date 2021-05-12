@@ -1,168 +1,140 @@
-import { ctrl, Action, action, swarm } from "../../cxctrl/mod.ts"
+import { ctrl, Action, action, swarm , iterate } from "../../cxctrl/mod.ts"
 import { CxIterator } from "../../cxstore/mod.ts"
 import { StoreEntry } from "../../cxstore/interfaces.ts"
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import FTPClient from "https://deno.land/x/ftpc@v1.1.0/mod.ts"
-import { CxError, _  } from "../../cxutil/mod.ts"
+import { CxError, _ , ee } from "../../cxutil/mod.ts"
 import { expect } from 'https://deno.land/x/expect/mod.ts'
 
-const __filename = new URL('', import.meta.url).pathname;
-
-type FtpFetchObjectType = {
-    ftpServer:  string,
-    ftpPath:    string,
-    fileName:   string,
-    fileInfo?:  Deno.FileInfo,
-    data?:      Uint8Array,
-    status?:    boolean
-    info?:      string
-}
-
-let  config = {
-    ftpConf: {
-        server:          'ftp.ncdc.noaa.gov',
-        directory:       'pub/data/ghcn/daily/by_year/'
-    }
-}
+const __filename = new URL('', import.meta.url).pathname
 
 @action({
-    state: [] as FtpFetchObjectType[],
-    name: 'FtpList',
+    state: [] as string[],
     init: false
 })
-export class FtpList extends Action<FtpFetchObjectType[]> {
-    constructor( 
-        public server: string = config.ftpConf.server, 
-        public directory: string = config.ftpConf.directory) {
-        super()
-    }
-    async main (): Promise<boolean> {
-        let self = this
+export class FileList extends Action<string[]> {
+    runs: number = 0
+    main (): Promise<boolean> {
         try {
-            console.log ( `running ${this.meta.name}`)
-            let ftpClient = new FTPClient(this.server) 
-            await ftpClient.connect()
-            await ftpClient.chdir(this.directory)
-            let fileList = await ftpClient.list()
-            fileList.forEach( async (fileName, idx ) => {
-                self.state.push({
-                    ftpServer: self.server,
-                    ftpPath:  self.directory,
-                    fileName: fileName
-                })
-                if ( idx > 0 && idx % 20 === 0 ) {
-                    this.publish()
-                    self.state = []
-                }
-            })
-            ftpClient.close()
+            for ( let i = 0; i < 1000; i++ )   {
+                this.state.push( `run_${this.runs}_${i}`)
+            }
             this.publish()
         }
         catch( err) {
-            throw new CxError( __filename, 'FtpList', 'FTP-0001',`ftpList.main() failed.`, err)
+            throw new CxError( __filename, 'FileList', 'TEST-0001',`fileList.main() failed.`, err)
         }
         return Promise.resolve(true)
     }
 }
 
-@action({
-    state: {} as FtpFetchObjectType,
-    name: 'FtpFetch',
-    init: false
-})
-export class FtpFetch extends Action<FtpFetchObjectType> {
 
-    constructor( state?: FtpFetchObjectType) {
-        super(state)
-    }
+@action({
+    state: [] as string[],
+})
+export class FileAppend extends Action<string[]> {
     
     async main(): Promise<boolean> {   
-        let ftpClient: FTPClient 
+        console.log(`RUNNING ${ _.isUndefined(this.swarm.swarmName!) ? this.meta.name : this.swarm.swarmName }`)
         try {
-            console.log(`RUNNING ${ _.isUndefined(this.meta.swarmName!) ? this.meta.name : this.meta.swarmName }`)
-            // if ( ! this.isSwarmMaster() ) {            
-                try {
-                    ftpClient = new FTPClient(config.ftpConf.server)  //"ftp.ncdc.noaa.gov"
-                    await ftpClient.connect()
-                    let dir = path.dirname(config.ftpConf.directory)
-                    await ftpClient.chdir( dir) 
-    
-                    let itor: CxIterator<FtpFetchObjectType[],FtpFetchObjectType> 
-                    // console.log(`Into TRY: ${ _.isUndefined(this.meta.swarmName!) ? this.meta.name : this.meta.swarmName }`)
-                    itor = ctrl.getIterator<FtpFetchObjectType[],FtpFetchObjectType>('FtpFetch', 'FtpList', this.getJobId(), true ) as CxIterator<FtpFetchObjectType[],FtpFetchObjectType> 
-                    let obj: IteratorResult<any>
-                    while ( itor && (obj = itor.next() )  &&  ! obj.done ) {
-                        let fileName = path.basename((obj.value[1] as any).ftpPath)
-                        this.state.fileInfo = await ftpClient.stat(fileName)
-                        // this.state.data = await ftpClient.download(fileName)
-                        this.state.status = true
-                        this.publish()
-                    } 
-                }
-                catch ( err ) {
-                    throw new CxError( __filename, 'ftpFetch.main()', 'FTP-0003',`FtpFetch main(): ${JSON.stringify(err)}`, err)
-                }
-                finally {
-                    try { ftpClient!.close() } catch(err) {}
-                }
-            // }
+            let itor: CxIterator<string[], string> 
+            itor = iterate.getIterator<string[],string>('FileAppend', 'FileList', this.getJobId(), true ) as CxIterator<string[],string> 
+            let obj: IteratorResult<any>
+            while ( itor && (obj = itor.next() )  &&  ! obj.done ) {
+                let fileName = obj.value[1] as string
+                this.state.push(`${fileName}_killroy_was_here`) 
+                this.publish()
+            } 
         }
-        catch( err) {
-            throw new CxError( __filename, 'ftpFetch.main()', 'FTP-0002',`FtpFetch failed with: ${JSON.stringify(err)}`, err)
+        catch ( err ) {
+            throw new CxError( __filename, 'FileAppend.main()', 'TEST-0002',`main(): ${JSON.stringify(err)}`, err)
         }
-        // finally {
-        //     console.log(`Finishing ${ _.isUndefined(this.meta.swarmName!) ? this.meta.name : this.meta.swarmName }`)
-        // }
-
     return Promise.resolve(true)
-        // return true
     }
 }
 
-let ftpList = await new FtpList().register()
+let fileList = await new FileList().register()
+let fileAppend = await new FileAppend().register()
 
-let ftpFetch = await new FtpFetch().register()
+swarm.setSwarmConf('FileAppend', 3, 3)
+await fileAppend.setDependencies('FileList')
+await swarm.addSwarm('FileAppend', FileAppend )
 
-// ftpList.main()
+await fileAppend.run()
 
-swarm.setSwarmConf('FtpFetch', 3, 10)
-await ftpFetch.setDependencies('FtpList')
-await swarm.addSwarm('FtpFetch', FtpFetch )
-
-await ftpFetch.run()
 
 Deno.test( {
-    name: '07 - FtpList has created a partioned file list', 
+    name: '07 - Root FileList and Swarm copies has the correct variables set', 
     fn: async () => {
-        expect( ctrl.store.has('FtpList') ).toBeTruthy()
-        expect( (ctrl.getStateData('FtpList', -1) as FtpFetchObjectType[]).length ).toBeGreaterThan(15) 
+        expect( ctrl.store.has('FileList') ).toBeTruthy()
+        expect ( fileAppend.swarm.swarmLsnr).toBeUndefined()
+        // expect( fileAppend.swarm.swarName ).toEqual(fileAppend.meta.name) // TODO: check what is appropriate 
+        expect( fileAppend.swarm.children.length ).toEqual(3)
+        expect( fileAppend.swarm.canRun).toBeTruthy()
+        expect( fileAppend.swarm.isMaster()).toBeTruthy()
+        fileAppend.swarm.children.forEach( (value: string, index: number) => {
+            let sObj = ctrl.actions.get(value)!
+            expect( sObj.meta.name ).toEqual(fileAppend.meta.name)
+            expect( fileAppend.swarm.swarName ).not.toEqual(fileAppend.meta.name)
+            expect( sObj.swarm.children ).toBeUndefined()
+            expect ( sObj.swarm.swarmLsnr).toBeDefined()
+            expect( sObj.swarm.canRun).toBeTruthy()
+            expect( sObj.swarm.isMaster()).toBeFalsy()
+        })
+        expect( (ctrl.getStateData('FileList', -1) as string[]).length ).toBeGreaterThan(999) 
     },
     sanitizeResources: false,
     sanitizeOps: false
-  })
+})
 
-
-  Deno.test( {
-    name: '07 - FtpFetch has made a stat of each file in FtpList', 
+Deno.test( {
+    name: '07 - Root FileList can toggle the Swarm copies run state', 
     fn: async () => {
-        expect( ctrl.store.has('FtpFetch') ).toBeTruthy()
-        expect( (ctrl.getStateData('FtpFetch', -1) as FtpFetchObjectType) ).toBeDefined()
-        let itorL = ctrl.getIterator<FtpFetchObjectType[],FtpFetchObjectType>('FtpFetch', 'FtpList', ftpList.getJobId(), true )
+        fileAppend.swarm.children.forEach( async (value: string, index: number) => {
+            let sObj = ctrl.actions.get(value)!
+            let msg = `${sObj.swarm.swarmName}_msg`
+            expect( sObj.swarm.canRun).toBeTruthy()
+            try {
+                // console.log( `EventName: ${msg}`)
+                await ee.emit(msg, 'stop')
+                // expect( sObj.swarm.canRun).toBeFalsy()
+                await ee.emit(msg, 'Run')
+                // expect( sObj.swarm.canRun).toBeTruthy()
+            }
+            catch( err ) { console.log(err)}
+            
+        })
+        expect( (ctrl.getStateData('FileList', -1) as string[]).length ).toBeGreaterThan(999) 
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
+})
+
+Deno.test( {
+    name: '07 - FileList has created a partioned file list', 
+    fn: async () => {
+        expect( ctrl.store.has('FileList') ).toBeTruthy()
+        expect( (ctrl.getStateData('FileList', -1) as string[]).length ).toBeGreaterThan(999) 
+    },
+    sanitizeResources: false,
+    sanitizeOps: false
+})
+
+Deno.test( {
+    name: '07 - FileAppend has appended to FileList', 
+    fn: async () => {
+        expect( ctrl.store.has('FileAppend') ).toBeTruthy()
+        expect( (ctrl.getStateData('FileAppend', -1) as string[]) ).toBeDefined()
+        let itorL = iterate.getIterator<string[],string>('FileAppend', 'FileList', fileList.getJobId(), true )
         let countL = itorL?.entryCounter
-        let itor = ctrl.getIterator<FtpFetchObjectType[],FtpFetchObjectType>('FtpFetch', 'FtpFetch', ftpFetch.getJobId() )
+        let iter = iterate.getIterator<string[],string>('FileAppend', 'FileAppend', fileAppend.getJobId() )
         let count = 0
-        let obj: IteratorResult<any>
-        while ( itor && (obj = itor.next() )  &&  ! obj.done ) {
+        let obj: any
+        while ( iter && (obj = iter.next() )  &&  ! obj.done ) {
             count++
         }
         expect( count).toEqual(countL)
     },
     sanitizeResources: false,
     sanitizeOps: false
-  })
-
-
-
-
-
-
+})

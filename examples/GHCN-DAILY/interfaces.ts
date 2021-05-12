@@ -29,16 +29,6 @@ export type ColumnDefType = {
     repeat?:    boolean
 }
 
-export type TablesDefType = { 
-    file:           string, 
-    txt:            string, 
-    cols:           Map<string,ColumnDefType>, 
-    initialized?:   boolean,
-    readTmpl?:      string[],
-    table?:         string,
-    insert?:        string
-}
-
 export type RepeatingGroupType = {
     colName:    string, 
     start:      number, 
@@ -54,6 +44,12 @@ export type ConnPoolConfigType = {
     hostname:         string,
     port:             number,
     POOL_CONNECTIONS: number
+}
+
+export type RunConf = {
+        keepTables:     boolean,
+        keepFilelist:   boolean,
+        keepTextTables: boolean
 }
 
 export type FtpConf = {
@@ -73,10 +69,11 @@ export type HttpConf = {
 }
 
 export type ConfigType = {
-    dbConf : ConnPoolConfigType, 
-    ftpConf: FtpConf,
-    httpConf: HttpConf,
-    staging: Staging
+    // runConf:    RunConf
+    dbConf :    ConnPoolConfigType, 
+    ftpConf:    FtpConf,
+    httpConf:   HttpConf,
+    staging:    Staging
 }
 
 export type LoadListType = {
@@ -94,5 +91,42 @@ export type HttpHeaderType = {
     LONGITUDE: number,
     ELEVATION: number,
     NAME:      string,
-    ID:        number 
+    COUNTRY:   string,
+    FILE_ID:   number 
 }
+
+export type AirTempType = {
+    TMAX:        number,
+    TMIN:        number,
+    TOBS:        number,
+    TAVG:        number,
+    TMAX_ATTRIBUTES: string
+    TMIN_ATTRIBUTES: string
+    TOBS_ATTRIBUTES: string
+    TAVG_ATTRIBUTES: string
+}
+
+
+export type TablesDefType = { 
+    file:           string, 
+    txt:            string, 
+    cols:           Map<string,ColumnDefType>, 
+    initialized?:   boolean,
+    readTmpl?:      string[],
+    table?:         string,
+    insert?:        string
+}
+
+export type TableStatus = {
+    dropped: boolean,
+    created: boolean,
+    inserts: number,
+    deletes: number
+}
+
+export type TablesType = {
+    tableStatus: Map<string, Partial<TableStatus>>
+    tableDefs:   Map<string,TablesDefType> 
+}
+
+

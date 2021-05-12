@@ -1,6 +1,6 @@
 import { ctrl } from "./mod.ts"
 import { Mutex, ee, CxError, _ }    from "../cxutil/mod.ts"
-import { RunIntf , ActionDescriptor } from "./interfaces.ts"
+import { RunIntf , ActionDescriptor, SwarmIntf } from "./interfaces.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 
@@ -8,7 +8,7 @@ import { StoreEntry } from "../cxstore/interfaces.ts"
 // Used by Action udate to infor the base type in case
 // the supplied type is an Array type
 //
-// type Unarray<S> = S extends Array<infer U> ? U : S;
+type Unarray<S> = S extends Array<infer U> ? U : S;
 
 export abstract class Action<S> { 
     
@@ -58,8 +58,15 @@ export abstract class Action<S> {
      * 
      * @return boolean True if this object has a swarm of children
      */
-    isSwarmMaster = () => !_.isUndefined(this.meta.swarmChildren) && this.meta.swarmChildren!.length > 0 
-
+    // isSwarmMaster = () =>  
+    public swarm: SwarmIntf = {
+        swarmName:  undefined,
+        canRun:     true,
+        canDispose: false,
+        swarmLsnr:  undefined,
+        children: undefined,
+        isMaster: () => !_.isUndefined(this.swarm.children) && this.swarm.children!.length > 0
+    }
     //
     // member functions 
     //
@@ -80,7 +87,7 @@ export abstract class Action<S> {
      */
     setDependencies = (... args: string[] ): string [] => { 
         let dependencies = _.uniq( args ) 
-        let name = !_.isUndefined( this.meta.swarmName! ) && this.meta.swarmName !== this.meta.name ? this.meta.swarmName : this.meta.name
+        let name = !_.isUndefined( this.swarm.swarmName! ) && this.swarm.swarmName !== this.meta.name ? this.swarm.swarmName : this.meta.name
         ctrl.addDependencies( name!, dependencies )
         return dependencies
     }
@@ -114,27 +121,30 @@ export abstract class Action<S> {
      * Run the promise chain for this controlled object
      * @return RunIntf  The promise chain RunIntf instance that has been executed
     */
-   run = async (): Promise<RunIntf>   => {
-    try {
-        let promiseChain = ctrl.getPromiseChain(this.meta.name!)
-        await promiseChain.run()
-        return Promise.resolve(promiseChain)
+    run = async (): Promise<RunIntf>   => {
+        try {
+            let promiseChain = ctrl.getPromiseChain(this.meta.name!)
+            await promiseChain.run()
+            return Promise.resolve(promiseChain)
+        }
+        catch ( err ) {
+            throw new CxError('Action.ts', 'run',  'ACT-0004', `Failed to run ${this.meta.name} promise chain`, err)
+        }
     }
-    catch ( err ) {
-        throw new CxError('Action.ts', 'run',  'ACT-0004', `Failed to run ${this.meta.name} promise chain`, err)
-    }
-}
     /** 
      * Update the state using a Partial type - this allows you to supply an Partial object that only contains the properties you want to update
      * @param updState A Partial version of the state object, only containing the updates
     */
-    update = ( updState: Partial<S>, idx: number = -1 ): void  => {
+
+    update = ( updState: Partial<Unarray<S>>, idx: number = -1 ): void  => {
         try {
-            if (! _.isArray(this.state) ) {
-                this.state = _.merge(this.state, updState)
+            if ( ! _.isArray(this.state) || idx < 0 ) {
+                this.state = _.clone( _.merge(this.state, updState) ) as S
             }
             else {
-                (this.state as unknown as Array<S>)[idx] = _.merge(( this.state as unknown as Array<S>)[idx] , updState)
+                let t1 = (this.state as unknown as Array<S>)[idx]
+                let t2: Unarray<S> = _.merge( t1 , updState);
+                (this.state as unknown as Array<Unarray<S>>)[idx] = t2
             }
         }
         catch ( err ) {
@@ -176,15 +186,17 @@ export abstract class Action<S> {
         return Promise.resolve(self)
     }
 
-    __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {  // 
+    __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {
         let res = false
-        try {
-            ee.emit(`${actionDesc.actionName}_${actionDesc.jobId}_run`)
-            this.currActionDesc = actionDesc             
-            res = await (this as any)[this.meta.funcName!]()
-        }
-        catch(err) {
-            throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed call ${this.meta.className}.${this.meta.funcName}`, err)
+        if ( this.swarm.canRun ) {
+            try {
+                ee.emit(`${actionDesc.actionName}_${actionDesc.jobId}_run`)
+                this.currActionDesc = actionDesc             
+                res = await (this as any)[this.meta.funcName!]()
+            }
+            catch(err) {
+                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed call ${this.meta.className}.${this.meta.funcName}`, err)
+            }
         }
         return Promise.resolve(res)
     }

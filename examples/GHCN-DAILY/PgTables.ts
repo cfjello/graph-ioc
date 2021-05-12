@@ -1,91 +1,28 @@
 import { Client } from "https://deno.land/x/postgres/mod.ts";
-import { ctrl, Action, action } from "../../cxctrl/mod.ts"
+import { Action, action } from "../../cxctrl/mod.ts"
 import { CxError } from "../../cxutil/mod.ts"
 import { _ } from "../../cxutil/mod.ts"
 import { config } from "./config.ts"
-import { ColumnDefType, TablesDefType, RepeatingGroupType } from "./interfaces.ts"
-import { ghcnCodes, ghcnCodesInsert, loadList, measure, measurements } from "./PgExtraTables.ts"
+import { ColumnDefType, TablesDefType, RepeatingGroupType, TableStatus, TablesType } from "./interfaces.ts"
+import { textTables, dataTables, textInserts } from "./PgTableDefs.ts"
+import { tableMods } from "./PgTableMods.ts"
 
 const __filename = new URL('', import.meta.url).pathname;
 
-export let tables = new Map<string,TablesDefType>()
-
-tables.set( 'Stations' ,{
-    file: 'ghcnd-stations.txt',
-    txt: 
-       `ID            1-11   VARCHAR
-        COUNTRY       1-2    VARCHAR
-        NETC          3-3    VARCHAR
-        STID          4-11   VARCHAR
-        LATITUDE     13-20   REAL
-        LONGITUDE    22-30   REAL
-        ELEVATION    32-37   REAL
-        STATE        39-40   VARCHAR
-        NAME         42-71   VARCHAR
-        GSN_FLAG     73-75   VARCHAR
-        HCN_CRN_FLAG 77-79   VARCHAR
-        WMO_ID       81-85   VARCHAR`,
-    cols:    new Map<string,ColumnDefType>()
-})
-
-
-tables.set( 'Countries', {
-    file: 'ghcnd-countries.txt',
-    txt: 
-       `ID           1-2    VARCHAR
-        NAME         4-50    VARCHAR`,
-    cols:    new Map<string,ColumnDefType>()
-})
-
-tables.set( 'States',  {
-    file: 'ghcnd-states.txt',
-    txt: 
-       `ID           1-2    VARCHAR
-        NAME         4-50    VARCHAR`,
-    cols:    new Map<string,ColumnDefType>()
-})
-
-tables.set( 'Inventory', {
-    file: 'ghcnd-inventory.txt',
-    txt: 
-       `ID            1-11   VARCHAR
-        LATITUDE     13-20   REAL
-        LONGITUDE    22-30   REAL
-        ELEMENT      32-35   VARCHAR
-        FIRSTYEAR    37-40   SMALLINT
-        LASTYEAR     42-45   SMALLINT`,
-    cols:    new Map<string,ColumnDefType>()
-})
-
-tables.set( 'MeasurementsOld', {
-    file: 'all',
-    txt:   
-       `ID            1-11   VARCHAR
-        COUNTRY       1-2    VARCHAR
-        NETC          3-3    VARCHAR
-        STID          4-11   VARCHAR
-        YEAR         12-15   SMALLINT
-        MONTH        16-17   SMALLINT
-        ELEMENT      18-21   VARCHAR
-        VALUE1       22-26   SMALLINT
-        MFLAG1       27-27   VARCHAR
-        QFLAG1       28-28   VARCHAR
-        SFLAG1       29-29   VARCHAR`,
-    cols:    new Map<string,ColumnDefType>()
-})
-
-
 @action({
-    state: tables,
-    init: true
+    state: {
+        tableStatus: new Map<string, Partial<TableStatus>>(),
+        tableDefs:   new Map<string,TablesDefType>(),
+        // dataTables:  Map<string, string>
+        } as TablesType
 })
-export class PgTables extends Action<Map<string,TablesDefType>>{
+export class PgTables extends Action<TablesType> {
 
     constructor( public keepLoadList: boolean = true, public parseOnly: boolean = false ) {
-        super()
+        super( )
     }
     
-     //
+    //
     // Alternative login for the daily files, since pgManager creates problems, probably associated to rollbacks
     // 
     getClient(): Client {
@@ -114,37 +51,29 @@ export class PgTables extends Action<Map<string,TablesDefType>>{
             return "'"
     }
 
-    async parseTmpl() {
+    parseTmpl() {
         let self = this
-        for ( let [key,def] of self.state ) {
-            // console.log ( `Parsing  ${key}`)
-            let columns = def.txt.match(/^.*([\n\r]+|$)/gm)
+        for ( let [key,def] of textTables ) {
+            self.state.tableDefs.set ( key , {} as TablesDefType )
+            self.state.tableDefs.get( key )!.cols = new Map<string,ColumnDefType>() 
+            let columns = def.txt.match(/^.*([\n\r]+|$)/gm) 
             if ( columns ) {
                 let fnReadLine: string[] = []
                 let repeatGroup: RepeatingGroupType[] = []
                 let repeatGroupLength = 0
                 let start = -1
                 let end   = -1 
-                columns.forEach( lin => {
+                columns.forEach( ( lin: string )   => {
                     let [ colName, len , colType ]  = lin.trim().split(/\s+/g)
                     let [_start, _end] = len.trim().split('-')
                     start = parseInt(_start) - 1
                     end   = parseInt(_end) 
 
-                    // Make sure that JS numbers are no percieved as strings
-                    // let prefix = colType === 'REAL' || colType === 'SMALLINT' ? '0 + ' : ''
+                    if ( colType === 'REAL' || colType === 'SMALLINT' )
+                        fnReadLine.push ( `"${colName}": line.substring(${start}, ${end}).trim()`)
+                    else
+                        fnReadLine.push ( `"${colName}": "'" + line.substring(${start}, ${end}).trim().replace(/'/g, "''" ) + "'"`)
 
-                    if ( colName.trim().endsWith('1') ) { // repeatable group
-                        colName = colName.trim().substr(0, colName.trim().length - 1)
-                        repeatGroup.push ( { colName: colName, start: start, end: end, colType: colType } )
-                        repeatGroupLength += ( end - start )
-                    }
-                    else {
-                        if ( colType === 'REAL' || colType === 'SMALLINT' )
-                            fnReadLine.push ( `"${colName}": line.substring(${start}, ${end}).trim()`)
-                        else
-                            fnReadLine.push ( `"${colName}": "'" + line.substring(${start}, ${end}).trim().replace(/'/g, "''" ) + "'"`)
-                    }
                     let colLen = end - start
                     if ( colType === 'REAL' || colType === 'SMALLINT') {
                         colType = 'FLOAT8'
@@ -152,58 +81,41 @@ export class PgTables extends Action<Map<string,TablesDefType>>{
                     }
 
                     let colDef = { type: colType, length: colLen}
-                    self.state.get(key)!.cols.set(colName, colDef)
+          
+                    self.state.tableDefs.get(key)!.cols.set(colName, colDef)
 
                     if ( colName === 'LONGITUDE' )  { // TODO: This is a hack for now
                         let colPosDef = { type: 'GEOGRAPHY', length: -1}
-                        self.state.get(key)!.cols.set('GEO_POS', colPosDef)
+                        self.state.tableDefs.get(key)!.cols.set('GEO_POS', colPosDef)
                         fnReadLine.push ( `"GEO_POS": "'POINT(" + line.substring(${start}, ${end}).trim() + " " + line.substring( 12, 20).trim() + ")'"`)
                     }
                 })
-                //
-                // Repeat for all days in a month
-                // 
-                if ( repeatGroupLength > 0 ) {
-                    // Add the year and day fields
-                    // let colDef = { type: 'integer', length: NaN, precision: NaN}
-                    // self.state.get(key)!.cols.set('MYEAR', colDef)
-                    let colDef1 = { type: 'integer', length: NaN, scale: NaN}
-                    self.state.get(key)!.cols.set('DAY', colDef1)
-
-                    for ( let i = 0; i < 31; i++ ) {
-                        fnReadLine.push ( `"DAY_${i+1}": ${i+1}`)
-                        let offset = i * repeatGroupLength
-                        repeatGroup.forEach( col => {
-                            if ( col.colType === 'REAL' || col.colType === 'SMALLINT' )
-                                fnReadLine.push ( `"${col.colName}_${i+1}": line.substring(${col.start + offset}, ${col.end + offset}).trim()`)
-                            else
-                                fnReadLine.push ( `"${col.colName}_${i+1}": "'" + line.substring(${col.start + offset}, ${col.end + offset}).trim() + "'"`)
-                        })
-                    }
-                }
-                self.state.get(key)!.readTmpl = this.buildReadTmpl(key, fnReadLine)
-                // let storePath =  `${config.staging.stageDir}/code/${key}_readline.ts`
-                // Deno.writeTextFileSync(storePath, self.state.get(key)!.readTmpl!.toString())
+                self.state.tableDefs.get(key)!.readTmpl = this.buildReadTmpl(key, fnReadLine)
             }
         }
     }
 
-    async dropTables( client: Client) {
-        let tableNames = [ ...tables.keys() ]
-        tableNames.push('ghcn_codes')
-        tableNames.push('measure')
-        tableNames.push('measurements')
-        if ( ! this.keepLoadList ) {
-            tableNames.push( 'load_list' ) 
+    setTableStatus( tableName:string, status: Partial<TableStatus> ) {
+        if ( this.state.tableStatus.has( tableName ) ) {
+            this.state.tableStatus.set( tableName, _.merge( this.state.tableStatus.set( tableName, status ) ) )
         }
+        else {
+            this.state.tableStatus.set( tableName, status ) 
+        }
+    }
+
+    async dropTables( client: Client) {
+        let self = this
+        let tableNames1 = [ ... textTables.keys() ]
+        let tableNames2 = [ ... dataTables.keys() ].filter( elem  => ( elem !== 'LOAD_LIST' && self.keepLoadList)  || !self.keepLoadList )
+        console.log(`DROP TABLES...`)
+        let tableNames = tableNames1.concat( tableNames2.reverse() )
         try {
             tableNames.forEach(async tName => {
                 console.log(`DROP ${tName}`)
-                let sqlCmd = `DROP TABLE IF EXISTS ${tName}`
-
-                    let result = await client.queryObject(sqlCmd)
-                    // if ( result.error ) throw new Error(result.error)
-            
+                let sqlCmd = `DROP TABLE IF EXISTS ${tName} CASCADE`
+                let result = await client.queryObject(sqlCmd)
+                this.setTableStatus( tName, {dropped: true } )
             })
             if ( this.keepLoadList ) {
                 let sqlCmd = 'UPDATE load_list set started = NULL, ended = NULL, success = false WHERE started IS NOT NULL OR ended IS NOT NULL'
@@ -215,11 +127,52 @@ export class PgTables extends Action<Map<string,TablesDefType>>{
         }
     }
 
+    async createIndexes(client: Client) {
+        try {  
+            for ( let [name, def] of tableMods ) {
+                if ( def.sql == 'Index' ) {
+                    console.log(`CREATE Index ${name}`)
+                    await client.queryObject(def.stmt)
+                    this.setTableStatus( name, {created: true } )
+                }
+            }
+        }
+        catch (err) {
+            throw new CxError( __filename, 'createIndexes()', 'TABLE-0006',`createIndexes() failed.`, err)
+        }
+    }
+
+    async createTables(client: Client) {
+        try {  
+            for ( let [table, def] of this.state.tableDefs ) {
+                // console.log(`CREATE TABLE ${table}: ${def.table}`)
+                console.log(`CREATE TABLE TABLE IF NOT EXISTS ${table}`)
+                await client.queryObject(def.table!)
+                this.setTableStatus( table, {created: true } )
+            }
+
+            for ( let [table, def] of dataTables ) {
+                if ( this.keepLoadList && table === 'LOAD_LIST') continue
+                console.log(`CREATE TABLE TABLE IF NOT EXISTS ${table}`)
+                await client.queryObject(def)
+                this.setTableStatus( table, {created: true } )
+            }
+
+            for ( let [table, ins] of textInserts ) {
+                console.log(`INSERT: ${table}`)
+                let res = await client.queryObject(ins as string)
+                this.setTableStatus( table, { inserts: res.rowCount} )
+            }
+        }
+        catch (err) {
+            throw new CxError( __filename, 'createTables()', 'TABLE-0001',`createTables() failed.`, err)
+        }
+    }
+    
     parseTables() {
-        for ( let [table, def] of this.state ) {
+        for ( let [table, def] of this.state.tableDefs ) {
             let cmd: string[] = []
             let ins: string[] = []
-            // console.log(`CREATE UNLOGGED TABLE ${table}`)
             cmd.push(`CREATE TABLE IF NOT EXISTS ${table} (`)
             ins.push(`INSERT INTO ${table} (` )
             for ( let [col, colDef] of def.cols ) {
@@ -235,77 +188,49 @@ export class PgTables extends Action<Map<string,TablesDefType>>{
             let insTmp = ins.join(',')
             let sqlCmd = sqlTmp.substring(0, sqlTmp.length - 1) + ')'
             let insCmd = insTmp.substring(0, sqlTmp.length - 1) + ')  VALUES '
-            // console.log(sqlCmd)
-            this.state.get(table)!.table  = sqlCmd
-            this.state.get(table)!.insert = insCmd.replace('(,', '(')
+            this.state.tableDefs.get(table)!.table  = sqlCmd
+            this.state.tableDefs.get(table)!.insert = insCmd.replace('(,', '(')
             //
             // add information on whether the table is initilized or not
             //
-            this.state.get(table)!.initialized = this.keepLoadList
-            // console.log(this.state.get(table)!.insert)
+            this.state.tableDefs.get(table)!.initialized = this.keepLoadList
         }
     }
 
-    async createTables(client: Client) {
+    async cleanup( client: Client) {
         try {
-            console.log(`CREATE TABLE Measure`)
-            await client.queryObject(measure)
-            console.log(`CREATE TABLE Measurements`)
-            await client.queryObject(measurements)
-            if ( ! this.keepLoadList ) {
-                console.log(`CREATE TABLE Loadlist`)
-                // await this.client.queryArray(loadList)
-                await client.queryObject(loadList)
-            }
-            console.log(`CREATE TABLE GhcnCodes`)
-        
-            // let result = await this.client.queryArray(ghcnCodes)
-            let result = await client.queryObject(ghcnCodes)
-            if ( result.warnings.length === 0  ) {
-                console.log(`INSERT GhcnCodes data`)
-                result = await client.queryObject(ghcnCodesInsert)
-            }
-            else {
-                console.log( `${JSON.stringify(result,undefined, 2)}`)
-            }
-
-            for ( let [table, def] of this.state ) {
-                console.log(`CREATE TABLE ${table}`)
-                result = await client.queryObject(def.table!)
-            }
+            let result = await client.queryObject('DELETE FROM STATIONS WHERE FILE_ID IN ( SELECT id FROM load_list WHERE started IS NOT NULL AND ended IS NULL )' )
+            console.log( `DELETED IN TABLE STATIONS INCOMPLETE LOADED DATA SETS, num of. rows: ${result.rowCount}`)
+            await client.queryObject(`UPDATE load_list SET started = NULL WHERE started IS NOT NULL AND ended IS NULL`)
         }
-        catch (err) {
-            throw new CxError( __filename, 'createTables()', 'TABLE-0001',`createTables() failed.`, err)
-        }
-        finally {
-            try {
-                // this.client.end()
-                console.log('Create tables...')
-            }
-            catch (err) {
-                throw new CxError( __filename, 'createTables()', 'TABLE-0002',`this.client.end() failed.`, err)
-            }
+        catch(err) {
+            throw new CxError( __filename, 'PgLoadData.cleanup()', 'TABLE-0006',`Failed to cleanup the tables.`, err)
         }
     }
 
     async main() {
         console.log('Running PgTables')
-        this.parseTmpl()
-        this.parseTables()
-        if ( ! this.parseOnly ) {
-            let client = this.getClient()
-            try {
-                await client.connect()
+
+        let client = this.getClient()
+        try {
+            await client.connect()
+            console.log('Connected...')
+            this.parseTmpl()
+            this.parseTables()
+            if ( ! this.parseOnly ) {
                 await this.dropTables(client)
                 await this.createTables(client) 
+                await this.createIndexes(client)
             }
-            catch (err) {
-                throw new CxError( __filename, 'main()', 'TABLE-0005',`this.main() failed.`, err)
-            }
-            finally {
-                client.end()
-            }
+            await this.cleanup(client)
         }
+        catch (err) {
+            throw new CxError( __filename, 'main()', 'TABLE-0005',`this.main() failed.`, err)
+        }
+        finally {
+            client.end()
+        }
+
         this.publish()
     }
 }

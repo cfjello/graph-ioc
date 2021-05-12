@@ -5,7 +5,7 @@ import { CHAR_QUESTION_MARK } from "https://deno.land/std@0.74.0/path/_constants
 
 type testFuncModel = { arg1:string, arg2:string }
 type A = {name:string, age: number} 
-type F = {firstName:string, lastName:string, job: string, age: number, sex: string}
+type F = {firstName:string, lastName:string, job: string, age: number, sex?: string}
 
 //
 // Leaf notes are initialized by:
@@ -70,7 +70,7 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
                 super()
             }
             main = async (): Promise<boolean> => { 
-                this.update( { lastName: 'Castro', age: 108, job: 'Deceased'})
+                this.update( { lastName: 'Castro', age: 108, job: 'Deceased'} )
                 this.publish()
                 return true
             }
@@ -108,29 +108,32 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex: stri
             constructor() {
                 super()
             }
+
+            show = () => { console.log( JSON.stringify(this.state)) } 
+
             main = async (): Promise<boolean> => { 
                 this.update(  {lastName: 'Castro', age: 108, job: 'Deceased'} , 1 )
                 this.publish()
                 return true
             }
-
-            nameAndAge = () => { console.log( JSON.stringify(this.state)) }
         }
         
-        let nameAndAge3: NameAndAge3 = await new NameAndAge3().register()
-        let res = await nameAndAge3.main()
+       
 
         Deno.test( {
             name: '03 - Instance State Array can be updated via "update" Patial with an array index', 
             fn: async () => {
+                let nameAndAge3: NameAndAge3 = await new NameAndAge3().register()
+                let res = await nameAndAge3.main()
+                // nameAndAge3.show()
                 expect(res).toEqual(true)
-                expect(nameAndAge3.state.lastName).toEqual('Castro')
-                expect(nameAndAge3.state.job).toEqual('Deceased')
-                expect(nameAndAge3.state.age).toEqual(108)
-                let state = ctrl.getState('Fidel') as F
-                expect(state.lastName).toEqual('Castro')
-                expect(state.job).toEqual('Deceased')
-                expect(state.age).toEqual(108)
+                expect(nameAndAge3.state[1].lastName).toEqual('Castro')
+                expect(nameAndAge3.state[1].job).toEqual('Deceased')
+                expect(nameAndAge3.state[1].age).toEqual(108)
+                let state = ctrl.getState('Fidel') as Array<F>
+                expect(state[1].lastName).toEqual('Castro')
+                expect(state[1].job).toEqual('Deceased')
+                expect(state[1].age).toEqual(108)
             },
             sanitizeResources: false,
             sanitizeOps: false
