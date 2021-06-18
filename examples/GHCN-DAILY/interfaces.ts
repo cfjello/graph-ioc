@@ -47,9 +47,11 @@ export type ConnPoolConfigType = {
 }
 
 export type RunConf = {
-        keepTables:     boolean,
-        keepFilelist:   boolean,
-        keepTextTables: boolean
+    dailyTables:    'keep' | 'create',
+    textTables:     'keep' | 'create',
+    fileLoadList:   'keep' | 'create',
+    loadData?:       boolean,
+    parseOnly?:      boolean
 }
 
 export type FtpConf = {
@@ -69,7 +71,7 @@ export type HttpConf = {
 }
 
 export type ConfigType = {
-    // runConf:    RunConf
+    runConf:    RunConf
     dbConf :    ConnPoolConfigType, 
     ftpConf:    FtpConf,
     httpConf:   HttpConf,
@@ -127,6 +129,13 @@ export type TableStatus = {
 export type TablesType = {
     tableStatus: Map<string, Partial<TableStatus>>
     tableDefs:   Map<string,TablesDefType> 
+    runConf:     RunConf
+}
+
+export type RowStatType = {
+    sequence: number,
+    interval: number,
+    rowCount: number
 }
 
 

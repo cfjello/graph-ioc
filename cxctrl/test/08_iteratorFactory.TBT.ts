@@ -19,7 +19,7 @@ export class NumList extends Action<EntryType[]> {
     seq:  number = 0
     main (): Promise<boolean> {
         try {
-            this.state = []
+            this.state = [] as EntryType[]
             for ( let i = 0; i < 1000; i++ )   {
                 let rec: EntryType = { run: this.runs, seq: i } 
                 this.state.push( rec )
@@ -41,8 +41,11 @@ let numList = await new NumList().register()
     state: [] as string[],
 })
 export class NumAppend extends Action<string[]> {
-    constructor(public maxCount = 1000) { super() }
+    constructor(public maxCount = 1000) { 
+        super() 
+    }
     async main(): Promise<boolean> {   
+        this.state = [] as string[]
         console.log(`RUNNING ${ _.isUndefined(this.swarm.swarmName!) ? this.meta.name : this.swarm.swarmName }`)
         try {
             let iConf = {
@@ -75,6 +78,7 @@ export class NumAppend2 extends Action<string[]> {
     constructor(public maxCount = 1000) { super() }
     async main(): Promise<boolean> {   
         console.log(`RUNNING ${ _.isUndefined(this.swarm.swarmName!) ? this.meta.name : this.swarm.swarmName }`)
+        this.state = [] as string[]
         try {
             let iConf = {
                 callee: 'NumAppend2', 
@@ -100,7 +104,7 @@ export class NumAppend2 extends Action<string[]> {
 }
 
 Deno.test( { 
-    name: '07 - Continuous Nested Iterator can request one set of data', 
+    name: '08 - Continuous Nested Iterator can request one set of data', 
     fn: async () => {
         let numAppend = await new NumAppend(1000).register()
         numAppend.setDependencies('NumList')
@@ -115,7 +119,7 @@ Deno.test( {
 
 
 Deno.test( { 
-    name: '07 - Continuous Nested Iterator can request multiple sets of data', 
+    name: '08 - Continuous Nested Iterator can request multiple sets of data', 
     fn: async () => {
         let numList2 = await new NumList().register('NumList2')
         let numAppend2 = await new NumAppend2(6666).register()

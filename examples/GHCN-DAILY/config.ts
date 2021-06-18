@@ -6,6 +6,12 @@ export { config } from "./config.secret.ts"
 */
 /*
 export let  config: ConfigType = {
+    runConf: {
+        dailyTables:    'create',
+        textTables:     'create',
+        fileLoadList:   'create',
+        parseOnly:      false
+    },
     dbConf: {
         applicationName: 'some_dw',
         user:            'yourUserName',

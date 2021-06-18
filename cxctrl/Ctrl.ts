@@ -4,7 +4,7 @@ import { CxStore, CxIterator, CxContinuous  }  from "../cxstore/mod.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 import {$log, perf, ee, CxError, _ } from "../cxutil/mod.ts"
 import { RunIntf, ActionDescriptor, NodeConfiguration } from "./interfaces.ts"
-import { Action } from './Action.ts'
+import { Action } from './mod.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
 import { ActionDescriptorFactory } from "./actionDescFactory.ts"
 
@@ -13,7 +13,6 @@ export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta
 
 export let store = new CxStore()
 
-// Latest: CTRL-0014
 //
 // Performance measurement and logger instance
 //
@@ -30,6 +29,79 @@ export let actions         = new Map<string, Action<any>>()
 // running one for each class
 //
 export let initCounts = new Map<string,number>()
+
+// 
+// Configuration functions
+// 
+/**
+ * Set the threshold and swarm configuration
+ * 
+ * @param name Name of the action element
+ * @param config The NodeConfiguration  for the action element
+ */
+ export let setNodeConfig = ( key: string, config: Partial<NodeConfiguration> ): void => {
+    if ( ! graph.hasNode(key) ) 
+        throw new CxError(__filename, 'setNodeConfig()', 'CONF-0001', `The graph has no node with id: ${key}`)
+    else {
+        let currConfig = graph.getNodeData(key)
+        graph.setNodeData( key, _.merge(currConfig, config) )
+    }
+}
+
+/**
+ * Set the threshold configuration, simpler user function
+ * 
+ * @param name Name of the storage element
+ * @param _threshold The threshold for the storage element, that how many version should be stored before attempting cleanup
+ */
+export let setThreshold = ( key: string, _threshold: number ): void  => {
+    let threshold = _threshold < 2 ? -1 : _threshold
+    try {
+        setNodeConfig( key, { jobThreshold: threshold } )
+    }
+    catch(err) {
+        throw new CxError( __filename, 'setThreshold()', 'CONF-0002', `Failed to set jobThreshold due to: ${err}` )
+    }
+}
+
+/**
+ * Evaluate and resolve an existing node configuration and return a new configuration - this is a configuration of the job threshold and and the swarm count and max for a given action object
+ * 
+ * @param name The name of the action object
+ * @param name The name of the action object
+ * @return NodeConfiguration A new validated node configuration
+ * 
+ */
+ export let resolveActionConfig = (name: string, maxThreshold: number): NodeConfiguration => {
+    //
+    // Read and resolve the threshold information
+    // 
+    let nodeConfig: NodeConfiguration = graph.getNodeData(name) 
+    let threshold = nodeConfig.jobThreshold
+    if ( maxThreshold >= 2  && nodeConfig.jobThreshold >= 2 )  { // threshold is not unlimited
+        if ( nodeConfig.jobThreshold < maxThreshold ) {
+            threshold =  maxThreshold
+        }
+        else {
+            maxThreshold  = threshold
+        }
+    }
+    else if ( nodeConfig.jobThreshold > 0 ) { // threshold is not unlimited, but ~ 1, where 2 is the minimum
+        threshold = 2
+    }
+    //
+    // Read and resolve swarm configuration
+    //
+    let swarmSeed = nodeConfig.minimum < 2 ? 0 : nodeConfig.minimum
+    let swarmMax  = nodeConfig.maximum < swarmSeed ? swarmSeed : nodeConfig.maximum
+    return { 
+        jobThreshold: threshold, 
+        name: name,
+        minimum: swarmSeed, 
+        maximum: swarmMax, 
+        // swarmChildren: nodeConfig.swarmChildren  
+    }
+}
 
 //
 // Convenience utility Store Functions
@@ -51,7 +123,7 @@ export let publish = ( action: Action<any> ): Promise<number> => {
  * @param idx The index of the state, where the default value (-1) gives you newest state 
  * @return  StoreEntry<T>  Returns a store StoreEntry: { data: T, meta: StateKeys }
  */
-export function  getState<T>(name:string, idx: number = -1, dataOnly: boolean = true ): StoreEntry<T> | T {
+export function getState<T>(name:string, idx: number = -1, dataOnly: boolean = true ): StoreEntry<T> | T {
     try {
         if ( dataOnly )
             return store.get(name, idx, dataOnly) as T
@@ -70,38 +142,6 @@ export function  getStateData<T>(name:string, idx: number = -1 ): T {
 // 
 // Job functions 
 //
-/**
- * Evaluate and resolve an existing node configuration and return a new configuration - this is a configuration of the job threshold and and the swarm count and max for a given action object
- * 
- * @param name The name of the action object
- * @param name The name of the action object
- * @return NodeConfiguration A new validated node configuration
- * 
- */
-let resolveActionConfig = (name: string, maxThreshold: number): NodeConfiguration => {
-    //
-    // Read and resolve the threshold information
-    // 
-    let nodeConfig: NodeConfiguration = graph.getNodeData(name) 
-    let threshold = nodeConfig.jobThreshold
-    if ( maxThreshold >= 2  && nodeConfig.jobThreshold >= 2 )  { // threshold is not unlimited
-        if ( nodeConfig.jobThreshold < maxThreshold ) {
-            threshold =  maxThreshold
-        }
-        else {
-            maxThreshold  = threshold
-        }
-    }
-    else if ( nodeConfig.jobThreshold > 0 ) { // threshold is not unlimited, but ~ 1, where 2 is the minimum
-        threshold = 2
-    }
-    //
-    // Read and resolve swarm configuration
-    //
-    let swarmSeed = nodeConfig.swarmSeed < 2 ? 0 : nodeConfig.swarmSeed
-    let swarmMax  = nodeConfig.swarmMax < swarmSeed ? swarmSeed : nodeConfig.swarmMax
-    return { jobThreshold: threshold, swarmSeed: swarmSeed, swarmMax: swarmMax, swarmChildren: nodeConfig.swarmChildren  }
-}
 
 /**
  * Delete entries relate to a specific job Id
@@ -195,7 +235,7 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
                 actionDesc.storeId   = storeId
                 action.currActionDesc = actionDesc       
                 graph.addNode( name )
-                graph.setNodeData( name, { jobThreshold: 0, swarmSeed: 0, swarmMax: 0 } as NodeConfiguration )
+                graph.setNodeData( name, { jobThreshold: 0, minimum: 0, maximum: 0 } as NodeConfiguration )
                 actions.set( name, action)
             })
         }
@@ -282,7 +322,7 @@ export let isDirty = ( actionName: string ): boolean => {
  * @param rootName Name of the action
  * @return A Map of Action Descriptors
  */
-export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdSeq().next().value  ): Map<string, ActionDescriptor> => {
+export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdSeq().next().value, runRoot: boolean = false  ): Map<string, ActionDescriptor> => {
     p.mark('getActionsToRun') // action: rootName
     let actionsToRun = new Map<string, ActionDescriptor>()
     let inversHierarchy  = new Map<string, string>()
@@ -318,24 +358,26 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
             // Set the action Descriptor
             //
             let ad = new ActionDescriptor()
-            ad.rootName    = rootName
-            ad.storeName   = name
-            ad.actionName  = name
-            ad.ident       = ident
-            ad.storeId     = storeId  // this is the current StoreId before running the action
-            ad.children    = children
-            ad.jobId       = jobId as number
-            ad.taskId      = taskIdSeq().next().value as number
-            ad.nodeConfig  = _.clone( nodeConfig )
+            ad.rootName     = rootName
+            ad.storeName    = name
+            ad.actionName   = name
+            ad.ident        = ident
+            ad.storeId      = storeId  // this is the current StoreId before running the action
+            ad.children     = children
+            ad.jobId        = jobId as number
+            ad.taskId       = taskIdSeq().next().value as number
+            ad.forceRunRoot = runRoot
+            ad.nodeConfig   = _.clone( nodeConfig )
             actionsToRun.set(name, ad )
-            nodeConfig?.swarmChildren?.forEach( swarmName => {
-                // console.log( `SWARM ActionDescription ${swarmName}`)
-                let swarmAd        = _.clone(ad)
-                swarmAd.actionName = swarmName
-                swarmAd.nodeConfig = undefined
-                actionsToRun.set(swarmName, swarmAd )
-            })
-            
+            if ( actions?.get(rootName)?.swarm ) {
+                actions.get(rootName)!.swarm!.children!.forEach( ( swarmName: string )  => {
+                    // console.log( `SWARM ActionDescription ${swarmName}`)
+                    let swarmAd        = _.clone(ad)
+                    swarmAd.actionName = swarmName
+                    swarmAd.nodeConfig = undefined
+                    actionsToRun.set(swarmName, swarmAd )
+                })
+            }   
             prevNodeIdent.push(ident)
         });     
     }
@@ -349,15 +391,16 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
  * TODO: also provide an Observables implementation of this
  * 
  * @param actionName  The storeName of the Action to be executed 
- * @param dirtyOnly If set to true, only run dirty (data is outdated and beed to be updated) actions
+ * @param runAll If set to true the whole chain is run otherwise only dirty Actions are rerun
+ * @param runRoot If true the root object of the is executed whether it is dirty or not
  * @returns ActionDescriptorIntf An Action descriptor interface containng a run() funtion that emits a run event for this action chain
  */
-export let getPromiseChain = ( actionName: string, runAll: boolean = true ): RunIntf => {
+export let getPromiseChain = ( actionName: string, runAll: boolean = false, runRoot: boolean = false ): RunIntf => {
     let jobId = jobIdSeq().next().value as number
     let jobKey: string =  store.addIndexKey( jobId, 'J' )
     
     p.mark( `promiseChain_${jobId}` )
-    let actionsToRun = getActionsToRun(actionName, jobId)
+    let actionsToRun = getActionsToRun(actionName, jobId, runRoot)
     //
     // baseKey is the object initiating the execution chain
     const baseKey = [... actionsToRun.keys()].reverse()[0] 
@@ -408,10 +451,12 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
         // Handling for swarmed objects: swarm master will wait for any one of the swarm children to emit a run event
         // 
         let swarmArr: any[] = []
-        ad.nodeConfig?.swarmChildren?.forEach( swarmName => {
-            let beginEvent = `${swarmName}_${jobId}_run`
-            swarmArr.push(new Promise( (resolve, reject) => { ee.on(beginEvent, () => resolve(beginEvent) ) } ) )
-        })
+        if ( actions?.get(ad.rootName)?.swarm ) {
+            actions!.get(ad.rootName)!.swarm!.children.forEach( swarmName => {
+                let beginEvent = `${swarmName}_${jobId}_run`
+                swarmArr.push(new Promise( (resolve, reject) => { ee.on(beginEvent, () => resolve(beginEvent) ) } ) )
+            })
+        }
         if ( swarmArr.length > 0 ) dependsOn.set(key, Promise.any( swarmArr ) ) 
 
         //
@@ -437,7 +482,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                             let actionObj = actions.get(key) as Action<any> 
                             actionObj.currActionDesc = ad
                             let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                            let dirty = ( isDirty( ad.storeName ) ||  runAll || firstRun )
+                            let dirty = ( ( ad.forceRunRoot && ad.storeName === ad.rootName ) || isDirty( ad.storeName ) ||  runAll || firstRun )
                             if ( dirty ) {
                                 res = await actionObj.__exec__ctrl__function__ (ad)
                                 ad.ran = true
@@ -445,7 +490,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
                             }
                             else { 
                                 //
-                                // Add to job-index even when action is not dirty/not called
+                                // Add to the job-index even when action is not dirty/not called
                                 //
                                 store.setIndexId(ad.storeName, jobKey, store.getStoreId( ad.storeName ) )
                             }
@@ -511,12 +556,14 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = true ): Run
 }
 
 /**
- * Runs all dependencies of a target action in order one by one and then the action itself
+ * Synchronously runs all dependencies of a target action in order one by one and then the action itself
  * 
  * @param actionName The storeName of the action to run
+ * @param runAll If set to true the whole chain is run otherwise only dirty Actions are rerun
+ * @param runRoot If true the root object of the is executed whether it is dirty or not
  * @return True if all actions ran successfully, otherwise false
  */
-export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<boolean> => {
+export let runTarget = ( actionName: string, runAll: boolean = false, runRoot: boolean = false ): Promise<boolean> => {
     let jobId = jobIdSeq().next().value as number
     let jobKey: string =  store.addIndexKey( jobId, 'J' )
 
@@ -532,12 +579,11 @@ export let runTarget = ( actionName: string, runAll: boolean = false ): Promise<
             let eventName = !_.isUndefined( actionObj.meta.swarmName! ) && actionObj.meta.swarmName !== actionObj.meta.name ? actionObj.meta.swarmName : actionObj.meta.name
             let finishEvent = `${eventName}_${jobId}_fin`
             let funcName: string = actionObj.meta.funcName as string
-            
             try {
                 let res = false 
                 actionObj.currActionDesc = actionDesc
                 let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                let dirty = ( isDirty(actionDesc.storeName) ||  runAll || firstRun )
+                let dirty = ( ( runRoot && actionDesc.storeName === actionDesc.rootName ) || isDirty( actionDesc.storeName ) ||  runAll || firstRun )
                 if ( dirty ) {
                     //
                     // Run the objects main function

@@ -8,8 +8,7 @@ const __filename = new URL('', import.meta.url).pathname
 export type Constructor<T = unknown> = new (...args: any[]) => T;
 
 export async function bootstrap<T,C>( Type: Constructor<T>, config: ActionConfigType<C> ): Promise<T> {
-
-    let instance: Action<T>;
+    let instance: Action<T>
     try { 
         //
         // Create the new object
@@ -23,17 +22,23 @@ export async function bootstrap<T,C>( Type: Constructor<T>, config: ActionConfig
             name:           name,
             funcName:       _.isUndefined(config.ctrl) ? 'main'   : config.ctrl as string,
             init:           _.isUndefined(config.init) ? false    : config.init,
-            className:      Type.prototype.constructor.name === 'FACTORY_CLASS' ? config.name : Type.prototype.constructor.name ,  
+            className:      Type.prototype.constructor.name === 'FACTORY_CLASS' ? config.name : Type.prototype.constructor.name,  
             callCount:      0 
         } as MetaType
 
-        instance.swarm = {
-            swarmName:  _.isUndefined(config.swarmName!) ? name   : config.swarmName,
-            canRun:     true,
-            canDispose: false,
-            swarmLsnr:  undefined,  // ee.on('dummy', () => void),
-            children :  undefined,
-            isMaster:   () => true
+        let isSwarmObj =  ! _.isUndefined(config.swarmName!) 
+        if ( isSwarmObj ) {
+            instance.swarm = {
+                swarmName:  _.isUndefined(config.swarmName!) ? name   : config.swarmName,
+                canRun:     true,
+                canBeDisposed: false,
+                swarmLsnr:  undefined,
+                reward:     (val: number) => { /* do nothing */ },
+                children :  []
+            }
+        }
+        else {
+            instance.swarm!.swarmName = name
         }
         //
         // Clone the object state if needed
@@ -45,18 +50,29 @@ export async function bootstrap<T,C>( Type: Constructor<T>, config: ActionConfig
         // Register the object, if it is an actual new action object 
         // (and not a swarm object that shares the store storeName 'storeName', but has a different swarmName )
         //
-        if ( instance.swarm.swarmName === name ) { 
+        if ( instance.isMaster() ) { 
             await instance.register()
         }
-        else {
+        else if ( instance.swarm !== undefined) {
+            //
+            // Set the reward function for the swarm object
+            //
+            instance.swarm.reward = ( val: number, name: string = 'swarm' ): void => { 
+                let msg = { value: val, name: name }
+                ee.emit( `${instance.meta.name}_reward`, msg )
+            }
             //
             // Set up a event listener for the swarm object
             //
-            instance.swarm.swarmLsnr = ee.on( `${instance.swarm.swarmName}_msg`, (msg: string): void => { 
-                                                                                        // console.log(`Event: ${instance.swarm.swarmName}_msg, MSG: ${msg}`)
-                                                                                        instance.swarm.canRun = ! instance.swarm.canRun 
-                                                                                    })
-            instance.swarm.isMaster = () => false
+            instance.swarm.swarmLsnr = ee.on( 
+                `${instance.swarm.swarmName}_msg`, 
+                (msg: string): void => { 
+                                        // console.log(`Event: ${instance.swarm.swarmName}_msg, MSG: ${msg}`)
+                                        if ( msg === 'stop' ) 
+                                            instance.swarm!.canRun = false 
+                                        else if ( msg === 'start' ) 
+                                            instance.swarm!.canRun = true 
+                                        })
         }
     }
     catch(err) { 

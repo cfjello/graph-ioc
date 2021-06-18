@@ -1,6 +1,7 @@
 import { ctrl } from "./mod.ts"
 import { Mutex, ee, CxError, _ }    from "../cxutil/mod.ts"
-import { RunIntf , ActionDescriptor, SwarmIntf } from "./interfaces.ts"
+import { RunIntf , ActionDescriptor, SwarmIntf  } from "./interfaces.ts"
+import { SwarmOptimizer } from "./SwarmOptimizer.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 
@@ -11,10 +12,10 @@ import { StoreEntry } from "../cxstore/interfaces.ts"
 type Unarray<S> = S extends Array<infer U> ? U : S;
 
 export abstract class Action<S> { 
-    
-    constructor(  state: S = {} as S) {
-        if ( ! _.isEmpty(state) ) {
-            this.state = state 
+
+    constructor(  state: S | undefined = undefined ) {
+        if ( !_.isUndefined(state) && ! _.isEmpty(state) ) {
+            this.state = state as S
             this.stateInit = true
         }
     }
@@ -45,7 +46,7 @@ export abstract class Action<S> {
     /**
      * State is the data that the action will eventually publish for other actions to read
      */
-    public state: S = {} as S 
+    public state: S = {} as S
     public stateInit: boolean = false
 
      /**
@@ -54,19 +55,11 @@ export abstract class Action<S> {
     public meta: MetaType = {} as MetaType
     
     /**
-     * Check if this Action object has a Swarm of child objects doing the work
-     * 
-     * @return boolean True if this object has a swarm of children
+     * Swarm interface
      */
-    // isSwarmMaster = () =>  
-    public swarm: SwarmIntf = {
-        swarmName:  undefined,
-        canRun:     true,
-        canDispose: false,
-        swarmLsnr:  undefined,
-        children: undefined,
-        isMaster: () => !_.isUndefined(this.swarm.children) && this.swarm.children!.length > 0
-    }
+    public swarm: SwarmIntf | undefined =  undefined
+
+    isMaster(): boolean { return (_.isUndefined(this.swarm!) || _.isUndefined(this.swarm!.swarmName) ||  this.swarm!.swarmName === this.meta.name ) }
     //
     // member functions 
     //
@@ -87,7 +80,7 @@ export abstract class Action<S> {
      */
     setDependencies = (... args: string[] ): string [] => { 
         let dependencies = _.uniq( args ) 
-        let name = !_.isUndefined( this.swarm.swarmName! ) && this.swarm.swarmName !== this.meta.name ? this.swarm.swarmName : this.meta.name
+        let name = !_.isUndefined( this.swarm ) && ( this.swarm!.swarmName ?? "__No_Name__") !== this.meta.name ? this.swarm!.swarmName : this.meta.name
         ctrl.addDependencies( name!, dependencies )
         return dependencies
     }
@@ -118,12 +111,13 @@ export abstract class Action<S> {
     }
 
      /** 
-     * Run the promise chain for this controlled object
+     * Run the dirty Action objects of the promise chain for this root object
+     * @param runRoot  Force the running of the rootObject whther it is dirty or not ( e.g. used by the continuous iterator)
      * @return RunIntf  The promise chain RunIntf instance that has been executed
     */
-    run = async (): Promise<RunIntf>   => {
+    run = async (forceRunRoot: boolean = false): Promise<RunIntf>   => {
         try {
-            let promiseChain = ctrl.getPromiseChain(this.meta.name!)
+            let promiseChain = ctrl.getPromiseChain(this.meta.name!, false, forceRunRoot )
             await promiseChain.run()
             return Promise.resolve(promiseChain)
         }
@@ -138,7 +132,7 @@ export abstract class Action<S> {
 
     update = ( updState: Partial<Unarray<S>>, idx: number = -1 ): void  => {
         try {
-            if ( ! _.isArray(this.state) || idx < 0 ) {
+            if ( idx < 0 ) {
                 this.state = _.clone( _.merge(this.state, updState) ) as S
             }
             else {
@@ -188,7 +182,7 @@ export abstract class Action<S> {
 
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {
         let res = false
-        if ( this.swarm.canRun ) {
+        if ( _.isUndefined( this.swarm) || this.swarm!.canRun ) {
             try {
                 ee.emit(`${actionDesc.actionName}_${actionDesc.jobId}_run`)
                 this.currActionDesc = actionDesc             

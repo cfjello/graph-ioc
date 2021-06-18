@@ -1,4 +1,5 @@
 import { Client } from "https://deno.land/x/postgres/mod.ts";
+import Mutex from "https://deno.land/x/await_mutex/mod.ts"
 // import { QueryObjectResult } from "https://deno.land/x/postgres/query/query.ts"
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { readLines } from "https://deno.land/std@0.93.0/io/mod.ts"
@@ -8,7 +9,7 @@ import { CxContinuous } from "../../cxstore/mod.ts"
 import { CxError } from "../../cxutil/mod.ts"
 import { _ } from "../../cxutil/mod.ts"
 import { LoadListType, 
-         ConfigType, 
+         RowStatType, 
          ColumnDefType, 
          TablesDefType, 
          TablesType, 
@@ -36,15 +37,19 @@ let toHHMMSS = function ( str: string ): string {
 }
 
 @action({
-    state: [] as LoadListType[]
+    state: { sequence: 0, interval: 0, rowCount: 0 } as RowStatType,
+    init:  true
 })
-export class PgLoadData extends Action<LoadListType> {
+export class PgLoadData extends Action<RowStatType> {
     // private conn =   ConnectionPool.getInstance() 
+    // static mutex  = new Mutex()
     static itor: CxContinuous<LoadListType[],LoadListType>
     
     initCap = function( str: string ): string {
         return str.charAt(0).toUpperCase() + str.slice(1)
-    } 
+    }
+
+    _batchSize = 10000
 
     //
     // Alternative login for the daily files, since pgManager creates problems, probably associated to rollbacks
@@ -74,7 +79,7 @@ export class PgLoadData extends Action<LoadListType> {
         let baseName  = path.basename(fileEntry.filepath)
         let tableName = this.initCap( baseName.replace(/^ghcnd-/, '').replace(/\.txt$/, '' ) ) 
         let filePath =  path.normalize(`${config.staging.stageDir}/textFiles/${baseName}`)
-
+        let stmt = ''
         try  {
             let pgTables: TablesType  =  ctrl.getStateData<TablesType>('PgTables')
             let fileName  = path.basename( fileEntry.filepath )
@@ -85,23 +90,24 @@ export class PgLoadData extends Action<LoadListType> {
                     break
                 }
             }
-
             let parseLine: Function = new Function(  ... pgTables.tableDefs.get(tableName)!.readTmpl! )
-
+            let inserts: string = '' 
             let fileReader = await Deno.open(filePath)
+
             for await ( let line  of readLines(fileReader) ) {
                 let row     = parseLine(line)
                 let values  = Object.values(row).map(col => col === "''" || col === undefined  || col === null ? "NULL": col )
-                let inserts = `( ${values.join(',')} )`.replace(/,,/mg, ',NULL,')
+                inserts = `( ${values.join(',')} )`.replace(/,,/mg, ',NULL,')
                 if ( ! inserts.match( /\(\s* NULL,/ )) { // Not an empty Row
-                    let stmt = `INSERT INTO ${tableName} VALUES ${inserts}`  
+                    stmt = `INSERT INTO ${tableName} VALUES ${inserts}`  
                     let result = await client.queryObject(stmt)
                 }
             }
             let result = await client.queryObject(`UPDATE load_list SET ended = now(), success = true WHERE id = ${fileEntry.id}`)
         }
         catch(err) {
-                throw new CxError( __filename, 'PgLoadData.loadTxtFile()', 'LOAD-0002',`Failed to build load text file for ${filePath}.`, err)
+                console.log(`FAIL: ${stmt}` )
+                throw new CxError( __filename, 'PgLoadData.loadTxtFile()', 'LOAD-0002',`Failed to build load text file for ${filePath}`, err)
         }
     }
 
@@ -141,10 +147,11 @@ export class PgLoadData extends Action<LoadListType> {
             airAttr = this.getAttributes( ent.TMIN_ATTRIBUTES )
             tavgAttr = this.getAttributes( ent.TAVG_ATTRIBUTES )
             this.airBuffer.push(`('${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.TMAX ?? 'NULL'}, ${ent.TMIN  ?? 'NULL'}, ${ent.TOBS  ?? 'NULL'}, ${ent.TAVG ?? 'NULL'}, ${airAttr[0]}, ${airAttr[1]}, ${airAttr[2]}, ${tavgAttr[0]}, ${tavgAttr[1]}, ${tavgAttr[2]})`)
-            if ( this.airBuffer.length > 0 &&  this.airBuffer.length % 10000 ) {
+            if ( this.airBuffer.length > 0 &&  this.airBuffer.length % this._batchSize ) {
                 try {
-                    await client.queryObject( `INSERT INTO Air VALUES ` + this.airBuffer.join(',') ) 
+                    await client.queryObject( `INSERT INTO Air VALUES ` + this.airBuffer.join(',')  + ` ON CONFLICT ON CONSTRAINT Air_PK DO NOTHING` ) 
                     this.airBuffer = [] 
+                    // await PgLoadData.setRowCount(this._batchSize)
                 }
                 catch(err) {
                     // console.log(`FAILED AIR record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -169,12 +176,12 @@ export class PgLoadData extends Action<LoadListType> {
     rainBuffer: any[] = []
 
     async insertRain ( ent:  { [index: string]: any } , client: Client ) {
-        let fields = [ 'PRCP'].filter( e =>  { if ( e in ent && !_.isUndefined( ent[e] ) && ent[e] !== 'NULL' ) return e } )
+        let fields = [ 'PRCP'].filter( e =>  { if ( e in ent && !_.isUndefined( ent[e] ) && ent[e] !== 'NULL' && ent[e].trim() !== '0') return e } )
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.PRCP_ATTRIBUTES )
             let prcp =  ent.PRCP.trim().match(/[0-9]+/) ?  parseInt(ent.PRCP.trim()) : 99767
             //
-            // Guard against for some illigal values
+            // Guard against for some illegal values
             //
             if ( prcp >= -32768 && prcp <= 32767 ) { 
                 this.rainBuffer.push ( `('${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.PRCP ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]})`)
@@ -183,10 +190,11 @@ export class PgLoadData extends Action<LoadListType> {
                 console.log(`BAD RAIN ENTRY: ('${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.PRCP ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]})`)
             }
             
-            if ( this.rainBuffer.length > 0 &&  this.rainBuffer.length % 10000 ) {
+            if ( this.rainBuffer.length > 0 &&  this.rainBuffer.length % this._batchSize ) {
                 try {
-                    await client.queryObject( `INSERT INTO Rain VALUES ` + this.rainBuffer.join(',') ) 
+                    await client.queryObject( `INSERT INTO Rain VALUES ` + this.rainBuffer.join(',')  + `  ON CONFLICT ON CONSTRAINT Rain_PK DO NOTHING` ) 
                     this.rainBuffer = [] 
+                    // await PgLoadData.setRowCount(this._batchSize)
                 }
                 catch(err) {
                     // console.log(`FAILED RAIN record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -210,7 +218,12 @@ export class PgLoadData extends Action<LoadListType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.SNOW_ATTRIBUTES )
             try {
-                await client.queryObject( `INSERT INTO Snow VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.SNOW ?? 'NULL'}, ${ent.SNWD ?? 'NULL'}, ${ent.WESD ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                if ( ent.SNWD  >= -32768 && ent.SNWD  <= 32767 ) {
+                    await client.queryObject( `INSERT INTO Snow VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.SNOW ?? 'NULL'}, ${ent.SNWD ?? 'NULL'}, ${ent.WESD ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Snow_PK DO NOTHING` )  
+                }
+                else {
+                    console.log(`SKIPPED 'OUT OF RANGE' SNOW record: ${JSON.stringify(ent, undefined, 2)}`)
+                }
             }
             catch(err) {
                 console.log(`FAILED SNOW record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -232,7 +245,12 @@ export class PgLoadData extends Action<LoadListType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.PSUN_ATTRIBUTES )
             try {
-                await client.queryObject( `INSERT INTO Sun VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.PSUN ?? 'NULL'}, ${ent.TSUN ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                if ( ent.PSUN >= -32768 && ent.PSUN <= 32767 && ent.TSUN >= -32768 && ent.TSUN <= 32767 ) {
+                    await client.queryObject( `INSERT INTO Sun VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.PSUN ?? 'NULL'}, ${ent.TSUN ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Sun_PK DO NOTHING` ) 
+                }
+                else {
+                    console.log(`FAILED SUN record: ${JSON.stringify(ent, undefined, 2)}`)
+                }
             }
             catch(err) {
                 console.log(`FAILED SUN record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -253,7 +271,7 @@ export class PgLoadData extends Action<LoadListType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.THIC_ATTRIBUTES )
             try {
-                await client.queryObject( `INSERT INTO Ice VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.THIC ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                await client.queryObject( `INSERT INTO Ice VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.THIC ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Ice_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED ICE record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -276,7 +294,7 @@ export class PgLoadData extends Action<LoadListType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.EVAP_ATTRIBUTES )
             try {
-                await client.queryObject( `INSERT INTO Evaporation VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.MNPN ?? 'NULL'}, ${ent.MXPN ?? 'NULL'}, ${ent.EVAP ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                await client.queryObject( `INSERT INTO Evaporation VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.MNPN ?? 'NULL'}, ${ent.MXPN ?? 'NULL'}, ${ent.EVAP ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Evaporation_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED EVAPORATION record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -300,7 +318,7 @@ export class PgLoadData extends Action<LoadListType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.ACMC_ATTRIBUTES )
             try {
-                await client.queryObject( `INSERT INTO Cloud VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.ACMC ?? 'NULL'}, ${ent.ACMH ?? 'NULL'}, ${ent.ACSC ?? 'NULL'}, ${ent.ACSH ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                await client.queryObject( `INSERT INTO Cloud VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.ACMC ?? 'NULL'}, ${ent.ACMH ?? 'NULL'}, ${ent.ACSC ?? 'NULL'}, ${ent.ACSH ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Cloud_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED CLOUD record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -350,7 +368,7 @@ export class PgLoadData extends Action<LoadListType> {
                     for ( let i = 0; i < wtArr.length; i++ ) {
                         let WT = wtArr[i]
                         let WV = i < wvArr.length ? wvArr[i] : _.isUndefined( ent.WV ) ? 'NULL' : ent.WV
-                        await client.queryObject( `INSERT INTO Weather VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${WT ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]}, ${WV ?? 'NULL'}, ${attr1[0]}, ${attr1[1]}, ${attr1[2]}  ) `) 
+                        await client.queryObject( `INSERT INTO Weather VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${WT ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]}, ${WV ?? 'NULL'}, ${attr1[0]}, ${attr1[1]}, ${attr1[2]}  )  ON CONFLICT ON CONSTRAINT Weather_PK DO NOTHING` ) 
                     }
                 }
                 catch(err) {
@@ -395,7 +413,7 @@ export class PgLoadData extends Action<LoadListType> {
             let FMTM = _.isUndefined( ent.FMTM ) || ent.FMTM === 'NULL' || ent.FMTM.trim().length === 0 ? 'NULL' : ent.FMTM.trim()
 
             if ( PGTM !== 'NULL' ) {
-                if ( PGTM.match( /^[012][0-9][012][0-9]$/) ) {
+                if ( PGTM.match( /^[012][0-9][012][0-9]$/) && parseInt(PGTM) <= 2359 ) {
                     // hours and minutes 
                     PGTM = `'${PGTM.substr(0,2) + ':' + PGTM.substr(2,2)}'`
                 }
@@ -407,7 +425,7 @@ export class PgLoadData extends Action<LoadListType> {
                 }
             }
             if ( FMTM !== 'NULL' ) {
-                if ( FMTM.match( /^[012][0-9][012][0-9]$/) ) {
+                if ( FMTM.match( /^[012][0-9][012][0-9]$/) && parseInt(FMTM) <= 2359  ) {
                     // hours and minutes 
                     FMTM = `'${FMTM.substr(0,2) + ':' + FMTM.substr(2,2)}'`
                 }
@@ -424,7 +442,7 @@ export class PgLoadData extends Action<LoadListType> {
                                                                       ${ent.WSF1 ?? 'NULL'}, ${ent.WDF1 ?? 'NULL'}, ${ent.WSF2 ?? 'NULL'},   ${ent.WDF2 ?? 'NULL'},
                                                                       ${ent.WSF5 ?? 'NULL'}, ${ent.WDF5 ?? 'NULL'}, ${ent.WSFG ?? 'NULL'},   ${ent.WSFI ?? 'NULL'},  
                                                                       ${ent.WSFM ?? 'NULL'}, ${FMTM}, ${ent.WDMV ?? 'NULL'}, 
-                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Wind_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED WIND record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -484,7 +502,7 @@ export class PgLoadData extends Action<LoadListType> {
                     await client.queryObject( `INSERT INTO Soil VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), 
                                                                         ${ent.SN_MIN ?? 'NULL'}, ${ent.SX_MAX ?? 'NULL'},  
                                                                         ${ent.COVER ?? 'NULL'}, '${groundCover}', ${coverDepth}, 
-                                                                        ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                        ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Soil_PK DO NOTHING` ) 
                 }
                 catch(err) {
                     console.log(`FAILED SOIL record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -511,7 +529,7 @@ export class PgLoadData extends Action<LoadListType> {
                 await client.queryObject( `INSERT INTO Air_MD VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), 
                                                                       ${ent.MDTN ?? 'NULL'}, ${ent.DATN ?? 'NULL'},  
                                                                       ${ent.MDTX ?? 'NULL'}, ${ent.DATX ?? 'NULL'}, 
-                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Air_MD_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED Air_MD record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -536,7 +554,7 @@ export class PgLoadData extends Action<LoadListType> {
             try {
                 await client.queryObject( `INSERT INTO Rain_MD VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), 
                                                                       ${ent.MDPR ?? 'NULL'}, ${ent.DAPR ?? 'NULL'}, ${ent.DWPR ?? 'NULL'},
-                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) ON CONFLICT ON CONSTRAINT Rain_MD_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED Rain_MD record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -559,7 +577,7 @@ export class PgLoadData extends Action<LoadListType> {
             try {
                 await client.queryObject( `INSERT INTO Snow_MD VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), 
                                                                       ${ent.MDSF ?? 'NULL'}, ${ent.DASF ?? 'NULL'},
-                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Snow_MD_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED Snow_MD record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -580,7 +598,7 @@ export class PgLoadData extends Action<LoadListType> {
             try {
                 await client.queryObject( `INSERT INTO Wind_MD VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), 
                                                                       ${ent.MDWM ?? 'NULL'}, ${ent.DAWM ?? 'NULL'},
-                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Wind_MD_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED Wind_MD record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -600,7 +618,7 @@ export class PgLoadData extends Action<LoadListType> {
             try {
                 await client.queryObject( `INSERT INTO Evaporation_MD VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), 
                                                                       ${ent.MDEV ?? 'NULL'}, ${ent.DAEV ?? 'NULL'},
-                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} ) `) 
+                                                                      ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Evaporation_MD_PK DO NOTHING` ) 
             }
             catch(err) {
                 console.log(`FAILED Evaporation_MD record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -644,7 +662,7 @@ export class PgLoadData extends Action<LoadListType> {
                     ent.COUNTRY     = ent.NAME.substring( ent.NAME.lastIndexOf(',') + 1).trim()
                     if ( idx++ === 1 ) { // First row after the header row
                         try {
-                            await client.queryObject( `INSERT INTO Stations VALUES ( '${ent.STATION}', ${ent.LATITUDE}, ${ent.LONGITUDE}, ${ (ent.ELEVATION.toString().length === 0 ) ? 'NULL': ent.ELEVATION }, '${ent.NAME.substring(0, ent.NAME.lastIndexOf(',')).trim()}', '${ent.COUNTRY}', ${fileEntry.id} )` )
+                            await client.queryObject( `INSERT INTO Stations VALUES ( '${ent.STATION}', ${ent.LATITUDE}, ${ent.LONGITUDE}, ${ (ent.ELEVATION.toString().length === 0 ) ? 'NULL': ent.ELEVATION }, '${ent.NAME.substring(0, ent.NAME.lastIndexOf(',')).trim()}', '${ent.COUNTRY}', ${fileEntry.id} ) ON CONFLICT ON CONSTRAINT stations_pkey DO NOTHING` )
                         }
                         catch(err) {
                             new CxError( __filename, 'PgLoadData.loadDailyHttp()', 'LOAD-0007',`Failed to insert ${filePath}: ( '${ent.STATION}', ${ent.LATITUDE}, ${ent.LONGITUDE}, ${ent.ELEVATION}, '${ent.NAME.substring(0, ent.NAME.lastIndexOf(',')).trim()}', '${ent.COUNTRY}', ${fileEntry.id} )`, err)
@@ -677,6 +695,7 @@ export class PgLoadData extends Action<LoadListType> {
    
     async main() {
         let client: Client = this.getClient()
+        let conf: Readonly<TablesType> = ctrl.getStateData("PgTables");
         // let filecount = 0
         try {     
             await client.connect()
@@ -687,26 +706,28 @@ export class PgLoadData extends Action<LoadListType> {
                 nestedIterator: true,
                 continuous: true
             } 
-            let itor = iterate.iteratorFactory< LoadListType[], LoadListType>( iConf )
+            // let itor = await iterate.iteratorFactory< LoadListType[], LoadListType>( iConf )
             
-            // ctrl.getContinuous< LoadListType[], LoadListType>('PgLoadData', 'LoadList', -1 , true)
+            let itor = await iterate.getContinuous< LoadListType[], LoadListType>('PgLoadData', 'LoadList', -1 , true)
             let obj: IteratorResult<any>
 
             while ( ( obj = await itor!.next() ) && ! obj.done ) {
                 let fileEntry = obj.value[1] as LoadListType
-                let objName = this.meta.swarmName ? this.meta.swarmName: this.meta.name
+                let objName = this.swarm.swarmName ? this.swarm.swarmName: this.meta.name
 
                 console.log(` ${objName} LOADING: ${fileEntry.id} , ${path.basename(fileEntry.filepath)}` )
 
                 let result = await client.queryObject(`UPDATE load_list SET started = now() WHERE id = ${fileEntry.id}`)
                 // if ( result.error ) throw new Error(result.error)
 
-                if ( fileEntry.filepath.endsWith('.txt') ) {
+                if ( fileEntry.filepath.endsWith('.txt') && conf.runConf.loadData ) {
                     await this.loadTxtFile( fileEntry, client)
                 }
-                if ( fileEntry.filepath.endsWith('.csv') ) {
+
+                if ( fileEntry.filepath.endsWith('.csv') && conf.runConf.loadData ) {
                     await this.loadDailyHttp( fileEntry, client )
                 }
+           
             } 
             console.log(`Exit due to no more itorater entries`)
         }
@@ -714,8 +735,8 @@ export class PgLoadData extends Action<LoadListType> {
             throw new CxError( __filename, 'PgLoadData.main()', 'LOAD-0001',`Failed to handle entry.`, err)
         }
         finally {
-            if ( this.airBuffer.length > 0 )  await client.queryObject( `INSERT INTO Air VALUES ` + this.airBuffer.join(',') ) 
-            if ( this.rainBuffer.length > 0 ) await client.queryObject( `INSERT INTO Rain VALUES ` + this.rainBuffer.join(',') )
+            if ( this.airBuffer.length > 0 )  await client.queryObject( `INSERT INTO Air VALUES `  + this.airBuffer.join(',')   + `  ON CONFLICT ON CONSTRAINT Air_PK  DO NOTHING` ) 
+            if ( this.rainBuffer.length > 0 ) await client.queryObject( `INSERT INTO Rain VALUES ` + this.rainBuffer.join(',')  + `  ON CONFLICT ON CONSTRAINT Rain_PK DO NOTHING`)
             if ( this.swarm.isMaster() ) { 
                 // The master is the last one to leave the swarm party, so it disposes of the iterator
                 iterate.iterators.get('PgLoadData')?.delete('LoadList')

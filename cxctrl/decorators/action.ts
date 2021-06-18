@@ -36,7 +36,7 @@ export function action<S>( config: ActionConfigType<S> ) {
                 // 2) not 1) and the configuration is different from the current state ( ~ we have inheritance )
                 //
                 if ( instance.stateInit === false && ( config.state !== instance.state ) ) {
-                    instance.state = _.cloneDeep( config.state ) 
+                    instance.state = _.merge( instance.state, _.cloneDeep( config.state ) ) 
                 }
                 return instance;
             }

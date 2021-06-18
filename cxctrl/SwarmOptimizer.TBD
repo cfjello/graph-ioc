@@ -1,0 +1,63 @@
+import {$log, perf, ee, CxError, _ } from "../cxutil/mod.ts"
+const __filename = new URL('', import.meta.url).pathname
+
+/*
+export type SwarmOptimizeConfType = {
+    approach: 'binary' | 'interval' | 'intervalBinary',
+    interval:  number,
+    range:    { min: number, max: number },
+    timerInterval: number,
+    skipFirst: number
+}
+*/ 
+
+export function optimizerFactory(_config: Partial<SwarmOptimizeConfType>) { 
+
+    let setConfDefaults = ( config: Partial<SwarmOptimizeConfType>): SwarmOptimizeConfType => {
+        try {
+            if ( ! config.approach ) config.approach = 'intervalBinary'
+            if ( ! config.interval ) config.interval = ( config.range!.max - config.range!.min ) / 10
+            if ( ! config.range ) throw new CxError(__filename, 'setConfDefaults()', 'SWARM-0020', `Missing the range max and min parameters`)
+            if ( ! config.timerInterval ) config.interval = 6000
+            if ( ! config.skipFirst ) config.skipFirst = 0
+        }
+        catch ( err ) {
+            throw new CxError(__filename, 'setConfDefaults()', 'SWARM-0020', `Failed to set optimizer config defaults.`, err)
+        }
+        return config! as SwarmOptimizeConfType
+    }
+
+    let config = setConfDefaults(_config)
+    let rewardValues      = new Array<number>()
+    let intervalTimer     = performance.now()
+    let rewardSeq: number = 0
+    let rewardValue       = 0 
+    return {
+        getConfig() {  return config },
+        setReward( val: number ) { 
+            try {
+                let currentTimer = performance.now()
+                rewardValue += val 
+                if ( (currentTimer - intervalTimer) > config.timerInterval ) {
+                    console.log( `NUM of ROWS: ${rewardValue}`)
+                    rewardValues.push( rewardValue )
+                    intervalTimer = currentTimer
+                    rewardValue = 0
+                }
+            }
+            catch ( err ) {
+                throw new CxError(__filename, 'removeSwarm()', 'SWARM-0021', `Failed to remove swarm member.`, err)
+            }
+        }
+    }
+}
+
+let optim = optimizerFactory({
+    approach: 'binary',
+    interval:  10,
+    range:    { min: 100, max: 500 },
+    timerInterval: 3000,
+    skipFirst: 1 
+    }) 
+
+console.log( JSON.stringify( optim.getConfig(), undefined, 2) ) 

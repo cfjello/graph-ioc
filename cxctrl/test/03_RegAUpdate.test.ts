@@ -9,7 +9,7 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex?: str
 
 //
 // Leaf notes are initialized by:
-// - their supplied initial action state object
+// - their supplied initial action stateData object
 // - their constructor
 // - an init function
 //
@@ -127,13 +127,14 @@ type F = {firstName:string, lastName:string, job: string, age: number, sex?: str
                 let res = await nameAndAge3.main()
                 // nameAndAge3.show()
                 expect(res).toEqual(true)
+                // let idx = Object.keys(nameAndAge3.state).length - 1
                 expect(nameAndAge3.state[1].lastName).toEqual('Castro')
                 expect(nameAndAge3.state[1].job).toEqual('Deceased')
                 expect(nameAndAge3.state[1].age).toEqual(108)
-                let state = ctrl.getState('Fidel') as Array<F>
-                expect(state[1].lastName).toEqual('Castro')
-                expect(state[1].job).toEqual('Deceased')
-                expect(state[1].age).toEqual(108)
+                let stateData = ctrl.getState('Fidel') as F[]
+                expect(stateData[1].lastName).toEqual('Castro')
+                expect(stateData[1].job).toEqual('Deceased')
+                expect(stateData[1].age).toEqual(108)
             },
             sanitizeResources: false,
             sanitizeOps: false

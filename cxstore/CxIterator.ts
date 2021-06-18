@@ -136,13 +136,13 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
 
 export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
     mutex                         = new Mutex();
-    actionObj: Action<T>
+    actionObj:      Action<T>
     storeIndexList: Array<number> = []
-    currEntries?: Iterator<any>
-    indexKey:     string
-    indexCounter: number          = 0
-    entryCounter: number          = 0
-    allDone:      boolean         = false
+    currEntries?:   Iterator<any>
+    indexKey:       string
+    indexCounter:   number        = 0
+    entryCounter:   number        = 0
+    allDone:        boolean       = false
     
     constructor( public config: Partial<IteratorType> ) {    
        try {
@@ -171,8 +171,8 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
 
     async getNextObjValues() {
         try {     
-            let preStoreId      = ctrl.store.getStoreId(this.actionObj.meta.name as string, -1)
-            await this.actionObj.run()
+            let preStoreId = ctrl.store.getStoreId(this.actionObj.meta.name as string, -1)
+            await this.actionObj.run(true)
             let postStoreId = ctrl.store.getStoreId(this.actionObj.meta.name as string, -1)
             //
             // Check if we published something new

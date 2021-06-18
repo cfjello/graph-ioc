@@ -2,13 +2,11 @@ import { Action, ctrl } from "../cxctrl/mod.ts";
 import { CxContinuous, CxIterator, CxStore } from "../cxstore/mod.ts";
 import { $log, _, CxError, ee, perf } from "../cxutil/mod.ts";
 import { IteratorConfType } from "./interfaces.ts";
+import Mutex from "https://deno.land/x/await_mutex/mod.ts"
 
 const __filename = new URL("", import.meta.url).pathname;
 
-export let iterators = new Map<
-  string,
-  Map<string, (CxIterator<any> | CxContinuous<any>)>
->();
+export let iterators = new Map<string, Map<string, (CxIterator<any> | CxContinuous<any>)>>();
 
 /**
  * Get an iterator for named stored object for a specific callee - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
@@ -68,31 +66,33 @@ export function getIterator<T, E>(
  * 
  * @return Iterator       An iterator for a list of a given type
  */
-export function getContinuous<T, E>(
+export async function getContinuous<T, E>(
   calleeStoreKey: string,
   storeKey: string,
   indexKey: number | string,
   nestedIterator: boolean = false,
   indexOffset = 0,
   indexPrefix: string = "J",
-): CxContinuous<T, E> {
+): Promise<CxContinuous<T, E>> {
+  let mutex = new Mutex();
+  const mutexLock = await mutex.acquire()
   try {
     if (!iterators.has(calleeStoreKey)) {
       iterators.set(calleeStoreKey, new Map<string, CxContinuous<T, E>>());
     }
     if (!iterators.get(calleeStoreKey)!.has(storeKey)) {
       iterators.get(calleeStoreKey)!.set(
-        storeKey,
-        new CxContinuous({
-          storeKey: storeKey,
-          indexKey: indexKey,
-          nestedIterator: nestedIterator,
-          indexOffset: indexOffset,
-          indexPrefix: indexPrefix,
-        }),
+          storeKey,
+          await new CxContinuous({
+            storeKey: storeKey,
+            indexKey: indexKey,
+            nestedIterator: nestedIterator,
+            indexOffset: indexOffset,
+            indexPrefix: indexPrefix,
+          }),
       );
     }
-    return iterators.get(calleeStoreKey)!.get(storeKey) as CxContinuous<T, E>;
+    return Promise.resolve(iterators.get(calleeStoreKey)!.get(storeKey) as CxContinuous<T, E> )
   } catch (err) {
     throw new CxError(
       __filename,
@@ -102,9 +102,12 @@ export function getContinuous<T, E>(
       err,
     );
   }
+  finally {
+    mutex.release(mutexLock)
+  }
 }
 
-/**
+/** TODO: FIX iteratorFactory - NOT WORKING
  * Get an iterator for named stored object for a specific callee - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
  * 
  * @param itorConf              Iterator configuration
@@ -118,50 +121,43 @@ export function getContinuous<T, E>(
  * @return Continuous<T,E> | CxIterator<T,E>       An iterator for a list of a given type
  */
 
-export function iteratorFactory<T, E>(
-  itorConf: Partial<IteratorConfType>,
-): CxContinuous<T, E> | CxIterator<T, E> {
+export async function iteratorFactory<T, E>( itorConf: Partial<IteratorConfType>, ): Promise<CxContinuous<T, E> | CxIterator<T, E>> {
+  let mutex = new Mutex();
+  const nextMutex = await mutex.acquire()
   try {
     if (
-      (_.isUndefined(itorConf.callee) ||
-        !ctrl.store.has(itorConf.callee as string)) ||
-      (_.isUndefined(itorConf.target) ||
-        !ctrl.store.has(itorConf.target as string))
+      (_.isUndefined(itorConf.callee) || !ctrl.store.has(itorConf.callee as string)) ||
+      (_.isUndefined(itorConf.target) || !ctrl.store.has(itorConf.target as string))
     ) {
       throw new Error(
         "Caller must as a minimum supply the name of an existing requesting Action, the name of an existing iterator target Store object.",
       );
     }
-
-    if (
-      _.isUndefined(itorConf.indexKey) ||
-      (typeof itorConf.indexKey === "number" && itorConf.indexKey === -1)
-    ) {
-      itorConf.indexKey = ctrl.actions.get(itorConf.callee as string)!
-        .getJobId();
+    if ( _.isUndefined(itorConf.indexKey) || (typeof itorConf.indexKey === "number" && itorConf.indexKey === -1) ) {
+      itorConf.indexKey = ctrl.actions.get(itorConf.target as string)!.getJobId();
     }
     if (_.isUndefined(itorConf.nestedIterator)) itorConf.nestedIterator = false;
     if (_.isUndefined(itorConf.continuous)) itorConf.continuous = false;
     if (_.isUndefined(itorConf.indexOffset)) itorConf.indexOffset = 0;
     if (_.isUndefined(itorConf.indexPrefix)) itorConf.indexPrefix = "J";
     if (itorConf.continuous) {
-      return getContinuous<T, E>(
+      return Promise.resolve(getContinuous<T, E>(
         itorConf.callee!,
         itorConf.target!,
         itorConf.indexKey!,
         itorConf.nestedIterator,
         itorConf.indexOffset!,
         itorConf.indexPrefix!,
-      ) as CxContinuous<T, E>;
+      ) as unknown as CxContinuous<T, E> );
     } else {
-      return getIterator<T, E>(
+      return Promise.resolve(getIterator<T, E>(
         itorConf.callee!,
         itorConf.target!,
         itorConf.indexKey!,
         itorConf.nestedIterator,
         itorConf.indexOffset!,
         itorConf.indexPrefix!,
-      ) as CxIterator<T, E>;
+      ) as CxIterator<T, E>);
     }
   } catch (err) {
     throw new CxError(
@@ -172,7 +168,11 @@ export function iteratorFactory<T, E>(
       err,
     );
   }
+  finally {
+    mutex.release(nextMutex)
+  }
 }
+
 
 export function deleteIterator(
   obj: Action<any>,
@@ -181,7 +181,7 @@ export function deleteIterator(
 ) {
   try {
     // The master is the last one to leave the swarm party, so it can dispose of the iterator
-    if (obj.swarm.isMaster()) {
+    if (obj.isMaster()) {
       iterators.get(callee)?.delete("LoadList");
     }
   } catch (err) {

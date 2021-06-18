@@ -3,7 +3,7 @@ import { Action, action } from "../../cxctrl/mod.ts"
 import { CxError } from "../../cxutil/mod.ts"
 import { _ } from "../../cxutil/mod.ts"
 import { config } from "./config.ts"
-import { ColumnDefType, TablesDefType, RepeatingGroupType, TableStatus, TablesType } from "./interfaces.ts"
+import { ColumnDefType, TablesDefType, RepeatingGroupType, TableStatus, TablesType, RunConf } from "./interfaces.ts"
 import { textTables, dataTables, textInserts } from "./PgTableDefs.ts"
 import { tableMods } from "./PgTableMods.ts"
 
@@ -13,13 +13,21 @@ const __filename = new URL('', import.meta.url).pathname;
     state: {
         tableStatus: new Map<string, Partial<TableStatus>>(),
         tableDefs:   new Map<string,TablesDefType>(),
-        // dataTables:  Map<string, string>
-        } as TablesType
+        runConf:     {} as RunConf
+        } as TablesType,
+    init: false
 })
 export class PgTables extends Action<TablesType> {
 
-    constructor( public keepLoadList: boolean = true, public parseOnly: boolean = false ) {
+    public keepLoadList: boolean
+
+    constructor( runConf: RunConf | undefined ) {
         super( )
+        console.log('PgTables constructor')
+        this.state.runConf = _.isUndefined(runConf ) ? _.clone(config.runConf) :  _.clone(runConf) as RunConf
+        if ( _.isUndefined(this.state.runConf.parseOnly) ) this.state.runConf.parseOnly = false
+        if ( _.isUndefined(this.state.runConf.loadData) ) this.state.runConf.loadData = true
+        this.keepLoadList = this.state.runConf.fileLoadList === 'keep' ? true : false
     }
     
     //
@@ -112,9 +120,11 @@ export class PgTables extends Action<TablesType> {
         let tableNames = tableNames1.concat( tableNames2.reverse() )
         try {
             tableNames.forEach(async tName => {
-                console.log(`DROP ${tName}`)
-                let sqlCmd = `DROP TABLE IF EXISTS ${tName} CASCADE`
+                
+                let sqlCmd = `DROP TABLE IF EXISTS ${tName}`
+                console.log(`${sqlCmd}`)
                 let result = await client.queryObject(sqlCmd)
+                // console.log(`${JSON.stringify(result,undefined, 2)}`)
                 this.setTableStatus( tName, {dropped: true } )
             })
             if ( this.keepLoadList ) {
@@ -144,24 +154,27 @@ export class PgTables extends Action<TablesType> {
 
     async createTables(client: Client) {
         try {  
-            for ( let [table, def] of this.state.tableDefs ) {
-                // console.log(`CREATE TABLE ${table}: ${def.table}`)
-                console.log(`CREATE TABLE TABLE IF NOT EXISTS ${table}`)
-                await client.queryObject(def.table!)
-                this.setTableStatus( table, {created: true } )
+            if ( this.state.runConf.textTables = 'create' ) {
+                for ( let [table, def] of this.state.tableDefs ) {
+                    // console.log(`CREATE TABLE ${table}: ${def.table}`)
+                    console.log(`CREATE TABLE IF NOT EXISTS ${table}`)
+                    await client.queryObject(def.table!)
+                    this.setTableStatus( table, {created: true } )
+                }
             }
+            if ( this.state.runConf.dailyTables = 'create' ) {
+                for ( let [table, def] of dataTables ) {
+                    if ( this.keepLoadList && table === 'LOAD_LIST') continue
+                    console.log(`CREATE TABLE IF NOT EXISTS ${table}`)
+                    await client.queryObject(def)
+                    this.setTableStatus( table, {created: true } )
+                }
 
-            for ( let [table, def] of dataTables ) {
-                if ( this.keepLoadList && table === 'LOAD_LIST') continue
-                console.log(`CREATE TABLE TABLE IF NOT EXISTS ${table}`)
-                await client.queryObject(def)
-                this.setTableStatus( table, {created: true } )
-            }
-
-            for ( let [table, ins] of textInserts ) {
-                console.log(`INSERT: ${table}`)
-                let res = await client.queryObject(ins as string)
-                this.setTableStatus( table, { inserts: res.rowCount} )
+                for ( let [table, ins] of textInserts ) {
+                    console.log(`INSERT: ${table}`)
+                    let res = await client.queryObject(ins as string)
+                    this.setTableStatus( table, { inserts: res.rowCount} )
+                }
             }
         }
         catch (err) {
@@ -198,9 +211,10 @@ export class PgTables extends Action<TablesType> {
     }
 
     async cleanup( client: Client) {
+        console.log('PgTables cleanup')
         try {
-            let result = await client.queryObject('DELETE FROM STATIONS WHERE FILE_ID IN ( SELECT id FROM load_list WHERE started IS NOT NULL AND ended IS NULL )' )
-            console.log( `DELETED IN TABLE STATIONS INCOMPLETE LOADED DATA SETS, num of. rows: ${result.rowCount}`)
+            // let result = await client.queryObject('DELETE FROM STATIONS WHERE FILE_ID IN ( SELECT id FROM load_list WHERE started IS NOT NULL AND ended IS NULL )' )
+            // console.log( `DELETED IN TABLE STATIONS INCOMPLETE LOADED DATA SETS, num of. rows: ${result.rowCount}`)
             await client.queryObject(`UPDATE load_list SET started = NULL WHERE started IS NOT NULL AND ended IS NULL`)
         }
         catch(err) {
@@ -214,14 +228,14 @@ export class PgTables extends Action<TablesType> {
         let client = this.getClient()
         try {
             await client.connect()
-            console.log('Connected...')
             this.parseTmpl()
             this.parseTables()
-            if ( ! this.parseOnly ) {
+            if ( ! this.state.runConf.parseOnly && this.state.runConf.dailyTables === 'create' ) {
                 await this.dropTables(client)
                 await this.createTables(client) 
-                await this.createIndexes(client)
+                // await this.createIndexes(client)
             }
+            // if ( this.state.runConf.loadData ) 
             await this.cleanup(client)
         }
         catch (err) {
@@ -230,7 +244,6 @@ export class PgTables extends Action<TablesType> {
         finally {
             client.end()
         }
-
         this.publish()
     }
 }
