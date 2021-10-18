@@ -1,13 +1,13 @@
-import { getObjectTypes, Reflect } from "./mod.ts"
+import { getTypes, Reflect } from "./mod.ts"
 import { Action } from "../cxctrl/mod.ts"
 
 export function defineStateTypes<T>( metaName: string, obj: Action<T> ) {
-    let inferredTypes = getObjectTypes( metaName, obj.state ) 
+    let inferredTypes = getTypes( metaName, obj.state ) 
     Reflect.defineMetadata( obj.meta.className , inferredTypes, obj , 'state' );
 }
 
 export function defineObjectTypes<T>( metaName: string, obj: Object ) {
-    let inferredTypes = getObjectTypes<T>( metaName, obj as T ) 
+    let inferredTypes = getTypes<T>( metaName, obj as T ) 
     Reflect.defineMetadata( metaName, inferredTypes, obj );
 }
 

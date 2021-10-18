@@ -1,12 +1,12 @@
-import Mutex from "https://deno.land/x/await_mutex/mod.ts"
-import { ctrl, Action } from "../cxctrl/mod.ts"
+import  Mutex  from "https://deno.land/x/await_mutex@v1.0.1/mod.ts"
+import { ctrl, Action} from "../cxctrl/mod.ts"
 import { _ , CxError} from "../cxutil/mod.ts"
 import { IteratorType, AsyncIterator } from "./interfaces.ts"
 
 const __filename = new URL('', import.meta.url).pathname;
 
 export class CxIterator<T,E = unknown> implements Iterator<T|E>{
-    // mutex                         = new Mutex();
+    // mutex             = new Mutex();
     storeIndexList:      Array<number>
     currEntries?:        Iterator<any>
     indexKey: string
@@ -31,12 +31,24 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
         return ! _.isUndefined(obj) && typeof obj[Symbol.iterator] === 'function';
     }
 
-    next(): IteratorResult<T> | IteratorResult<E> {
-        if ( this.config.nestedIterator ?? false ) {
-            return this.nextInEntry() as IteratorResult<E> 
+    next(caller: any = undefined ): IteratorResult<T> | IteratorResult<E> { /* done: boolean = false */ 
+        try {
+            if ( caller !== undefined && ! (caller as Action<any>).swarm?.canRun ) {
+                //
+                // This provides runtime control for swarm-objects 
+                // 
+                return { value: [ 0 , undefined ] , done: true }  as IteratorResult<T>
+            }
+            //
+            // The default behavior
+            //
+            if ( this.config.nestedIterator ?? false )
+                return this.nextInEntry() as IteratorResult<E> 
+            else
+                return this.nextInStore() as IteratorResult<T>
         }
-        else {
-            return this.nextInStore() as IteratorResult<T>
+        catch (err) {
+            throw new CxError(__filename, 'CxIterator.next()', 'STORE-0021', `Cannot return next entry.`, err)
         }
     }
 
@@ -192,16 +204,22 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
         
     }
 
-    async next(): Promise<IteratorResult<T> | IteratorResult<E>> {
+    async next( caller: any = undefined ): Promise<IteratorResult<T> | IteratorResult<E>> {
         const nextMutex = await this.mutex.acquire()
         try {
-            
-            if ( this.config.nestedIterator ?? false ) {
+            if ( caller !== undefined && ! (caller as Action<any>).swarm?.canRun ) {
+                //
+                // This provides runtime control for swarm-objects 
+                // 
+                return { value: [ 0 , undefined ] , done: true }  as IteratorResult<T>
+            }
+            //
+            // The default behavior
+            //
+            if ( this.config.nestedIterator ?? false ) 
                 return await this.nextInEntry() as IteratorResult<E>    
-            }
-            else {
+            else 
                 return await this.nextInStore() as IteratorResult<T>  
-            }
         }
         catch(err) {
             throw new CxError(__filename, 'CxContinuous.next()', 'STORE-0021', `Cannot retrieve next value.}`, err)
@@ -314,11 +332,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
                 //
                 if ( ! this.allDone && ! nextEntry.done ) nextEntry.value[0] = this.entryCounter++
             }
-            if ( nextEntry.done ) {
-                console.log(`NEXT: ${JSON.stringify(nextEntry)}`)
-            }
-           
-           return Promise.resolve( nextEntry as IteratorResult<E> ) 
+            return Promise.resolve( nextEntry as IteratorResult<E> ) 
         }
         catch ( err ) {
             throw new CxError(__filename, 'CxContinuous.nextInEntry()', 'STORE-0020', `Cannot return item from iterable store entry.`, err)

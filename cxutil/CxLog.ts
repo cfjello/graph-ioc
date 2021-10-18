@@ -33,7 +33,6 @@ await log.setup({
             date: logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')   , 
           }, msg )       
           return `${JSON.stringify(logEntry, undefined, 2 )!}` as string
-          // return `${JSON.stringify(msg, undefined, 2)!}` as string
         }
       }),
       ctrlFile: new log.handlers.FileHandler("DEBUG", {

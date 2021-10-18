@@ -1,9 +1,12 @@
+import  Mutex  from "https://deno.land/x/await_mutex@v1.0.1/mod.ts"
 import { ctrl } from "./mod.ts"
-import { Mutex, ee, CxError, _ }    from "../cxutil/mod.ts"
-import { RunIntf , ActionDescriptor, SwarmIntf  } from "./interfaces.ts"
-import { SwarmOptimizer } from "./SwarmOptimizer.ts"
+import { ee, CxError, _ }    from "../cxutil/mod.ts"
+import { RunIntf , ActionDescriptor,   } from "./interfaces.ts"
+import { SwarmOptimizerType, SwarmMasterType, SwarmChildType, SwarmInitType }  from "../cxswarm/interfaces.ts"
+import { SwarmOptimizer } from "../cxswarm/mod.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
+import EventEmitter from "https://raw.githubusercontent.com/denolibs/event_emitter/master/lib/mod.ts";
 
 //
 // Used by Action udate to infor the base type in case
@@ -11,7 +14,7 @@ import { StoreEntry } from "../cxstore/interfaces.ts"
 //
 type Unarray<S> = S extends Array<infer U> ? U : S;
 
-export abstract class Action<S> { 
+export class Action<S> { 
 
     constructor(  state: S | undefined = undefined ) {
         if ( !_.isUndefined(state) && ! _.isEmpty(state) ) {
@@ -29,20 +32,6 @@ export abstract class Action<S> {
     //
     public currActionDesc: ActionDescriptor = {} as ActionDescriptor
 
-    /*
-    public getCollection( jobId: number | undefined, dataOnly: true ): Map<string, any>{
-        try {
-            if ( _.isUndefined( jobId ) ) {
-                jobId = this.currActionDesc.jobId
-            }
-            return ctrl.store.getCollection(jobId!, undefined, dataOnly)
-        }
-        catch( err ) {
-            throw new CxError('Action.ts', 'getCollection', 'ACT-0001', `Failed to fetch collection for  ${jobId}`, err)
-        }
-    }
-    */ 
-
     /**
      * State is the data that the action will eventually publish for other actions to read
      */
@@ -57,9 +46,21 @@ export abstract class Action<S> {
     /**
      * Swarm interface
      */
-    public swarm: SwarmIntf | undefined =  undefined
+    public swarm: SwarmOptimizerType | SwarmMasterType | SwarmChildType |  SwarmInitType  =  { init: false, canRun: false }
 
-    isMaster(): boolean { return (_.isUndefined(this.swarm!) || _.isUndefined(this.swarm!.swarmName) ||  this.swarm!.swarmName === this.meta.name ) }
+    isSwarmMaster(): boolean {  
+        let master = false
+        if ( this.swarm.init ) {
+            // TODO DEL master = _.isUndefined(this.swarm.swarmName) ||  this.swarm.swarmName === this.meta.name 
+            master = (this.swarm as SwarmChildType).swarmName === this.meta.name
+        }
+        return master
+    } 
+
+    getName():  string  { 
+        return ! this.swarm.init ? this.meta.name! : (this.swarm as SwarmChildType).swarmName 
+    }
+    
     //
     // member functions 
     //
@@ -80,8 +81,8 @@ export abstract class Action<S> {
      */
     setDependencies = (... args: string[] ): string [] => { 
         let dependencies = _.uniq( args ) 
-        let name = !_.isUndefined( this.swarm ) && ( this.swarm!.swarmName ?? "__No_Name__") !== this.meta.name ? this.swarm!.swarmName : this.meta.name
-        ctrl.addDependencies( name!, dependencies )
+        // TODO: DEL let name = !_.isUndefined( this.swarm ) && ( this.swarm!.swarmName ?? "__No_Name__") !== this.meta.name ? this.swarm!.swarmName : this.meta.name
+        ctrl.addDependencies( this.getName(), dependencies )
         return dependencies
     }
 
@@ -93,7 +94,8 @@ export abstract class Action<S> {
      * @returns A copy of the state 
      */
     getChildState = (storeName: string ): StoreEntry<S>[] | undefined  => {
-        return ctrl.store.getIndexState(storeName, this.currActionDesc.jobId ) as StoreEntry<S>[]
+        let store = this.meta.intern ? ctrl.runState: ctrl.store 
+        return store.getIndexState(storeName, this.currActionDesc.jobId ) as StoreEntry<S>[]
     }
 
     /**
@@ -117,12 +119,13 @@ export abstract class Action<S> {
     */
     run = async (forceRunRoot: boolean = false): Promise<RunIntf>   => {
         try {
+            if ( ctrl.debug ) console.log(`Running ${this.meta.name} promise chain`)
             let promiseChain = ctrl.getPromiseChain(this.meta.name!, false, forceRunRoot )
             await promiseChain.run()
             return Promise.resolve(promiseChain)
         }
         catch ( err ) {
-            throw new CxError('Action.ts', 'run',  'ACT-0004', `Failed to run ${this.meta.name} promise chain`, err)
+            throw new CxError('Action.ts', 'run',  'ACT-0001', `Failed to run ${this.meta.name} promise chain`, err)
         }
     }
     /** 
@@ -160,9 +163,9 @@ export abstract class Action<S> {
     * @returns The reference itself
     */
 
-    register = async( 
-        name: string = this.meta.name as string, 
-        init: boolean = _.isUndefined(this.meta.init) ? false : this.meta.init! 
+    register = async ( 
+            name: string = this.meta.name as string, 
+            init: boolean = _.isUndefined(this.meta.init) ? false : this.meta.init! 
         ): Promise<any> => { 
 
         let self = this
@@ -175,21 +178,22 @@ export abstract class Action<S> {
             await ctrl.addAction( this as Action<S>, _cnt_ )
         }
         catch(err) {
-            throw new CxError('Action.ts', 'register()', 'ACT-0004', `Failed to register ${name}`, err)
+            throw new CxError('Action.ts', 'register()', 'ACT-0003', `Failed to register ${name}`, err)
         }
         return Promise.resolve(self)
     }
 
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {
         let res = false
-        if ( _.isUndefined( this.swarm) || this.swarm!.canRun ) {
+        if ( ! this.swarm.init || this.swarm.canRun ) {
             try {
+                if ( ctrl.debug ) console.log(`Emit ${actionDesc.actionName}_${actionDesc.jobId}_run`)
                 ee.emit(`${actionDesc.actionName}_${actionDesc.jobId}_run`)
                 this.currActionDesc = actionDesc             
                 res = await (this as any)[this.meta.funcName!]()
             }
             catch(err) {
-                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0003', `Failed call ${this.meta.className}.${this.meta.funcName}`, err)
+                throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0004', `Failed call ${this.meta.className}.${this.meta.funcName}`, err)
             }
         }
         return Promise.resolve(res)

@@ -1,5 +1,7 @@
-import { ctrl, Action, action, swarm  }  from '../mod.ts'
-import { NodeConfiguration } from '../interfaces.ts'
+import { ctrl, Action, action } from '../mod.ts'
+import { swarm  } from '../../cxswarm/mod.ts'
+import { config } from '../../cxconfig/mod.ts'
+import { NodeConfiguration } from '../../cxconfig/interfaces.ts'
 import { expect } from 'https://deno.land/x/expect/mod.ts'
 import { CxError, _ , ee } from "../../cxutil/mod.ts"
 
@@ -35,19 +37,19 @@ export class NumList extends Action<EntryType[]> {
 }
 
 let numList = await new NumList().register()
-swarm.setSwarmConfig('NumList', { swarmSeed: 100 , swarmMax: 200, approach: 'interval'} )
+swarm.setSwarmConfig('NumList', { minimum: 100 , maximum: 200, approach: 'interval', timerMS: 120000, skipFirst: 1 } )
 
 
 Deno.test( {
     name: '07 - Configuration and defaults should be set ', 
     fn: async () => {
-        let config = ctrl.graph.getNodeData('NumList') as NodeConfiguration
-        expect ( config ).toBeDefined()
-        expect( config.swarmSeed ).toEqual(100)
-        expect( config.swarmMax ).toEqual(200)
-        expect( config.approach ).toEqual('interval')
-        expect( config.timerInterval ).toEqual(120000)
-        expect( config.skipFirst ).toEqual(1)
+        let conf = config.nodeConfig.get('NumList') as NodeConfiguration
+        expect ( conf ).toBeDefined()
+        expect( conf.minimum ).toEqual(100)
+        expect( conf.maximum ).toEqual(200)
+        expect( conf.approach ).toEqual('interval')
+        expect( conf.timerMS ).toEqual(120000)
+        expect( conf.skipFirst ).toEqual(1)
     },
     sanitizeResources: false,
     sanitizeOps: false

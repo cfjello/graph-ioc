@@ -112,7 +112,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
 
         ctrl = ():boolean => { return true }
         nameAndAge = () => { console.log( JSON.stringify(this.state)) }
-        getName    = () => { return  this.state.name }
+        getstateName    = () => { return  this.state.name }
         getAge     = () => { return this.state.age }
     }
     
@@ -184,7 +184,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
         let storeId = ctrl.store.getStoreId('ObjB')
         let B = dep.get('ObjB')!
         expect(B.storeName).toEqual('ObjB')
-        expect(B.ident).toEqual( '01.02')
+        expect(B.ident == '01.02' || B.ident == '1.2'  ).toBeTruthy()
         expect(B.storeId).toEqual( storeId )
         expect(B.children.length).toEqual(0)
       },
@@ -225,7 +225,7 @@ Deno.test('Generator functions should return incremented numbers', () => {
 
           expect(B.rootName).toEqual('ObjC')
           expect(B.storeName).toEqual('ObjB')
-          expect(B.ident).toEqual( '01.02')
+          expect(B.ident == '01.02' || B.ident == '1.2'  ).toBeTruthy()
           expect(B.storeId).toEqual( storeId )
           expect(B.children).toEqual(['ObjD'])
     

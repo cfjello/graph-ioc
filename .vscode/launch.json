@@ -13,17 +13,16 @@
             "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
             "port": 9229,
             "outputCapture": "std",
-            "console": "integratedTerminal"
+
         },
         {
             "name": "Deno TEST <file>",
             "type": "node",
             "request": "launch",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["test", "--inspect-brk",  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
+            "runtimeArgs": ["test", "--inspect",  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
             "port": 9229,
-            "outputCapture": "std",
-            "console": "integratedTerminal"
+            "outputCapture": "std"
           },
     ]
 }

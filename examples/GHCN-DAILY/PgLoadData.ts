@@ -713,7 +713,7 @@ export class PgLoadData extends Action<RowStatType> {
 
             while ( ( obj = await itor!.next() ) && ! obj.done ) {
                 let fileEntry = obj.value[1] as LoadListType
-                let objName = this.swarm.swarmName ? this.swarm.swarmName: this.meta.name
+                let objName = this.swarm && this.swarm.swarmName ? this.swarm.swarmName: this.meta.name
 
                 console.log(` ${objName} LOADING: ${fileEntry.id} , ${path.basename(fileEntry.filepath)}` )
 
@@ -737,7 +737,7 @@ export class PgLoadData extends Action<RowStatType> {
         finally {
             if ( this.airBuffer.length > 0 )  await client.queryObject( `INSERT INTO Air VALUES `  + this.airBuffer.join(',')   + `  ON CONFLICT ON CONSTRAINT Air_PK  DO NOTHING` ) 
             if ( this.rainBuffer.length > 0 ) await client.queryObject( `INSERT INTO Rain VALUES ` + this.rainBuffer.join(',')  + `  ON CONFLICT ON CONSTRAINT Rain_PK DO NOTHING`)
-            if ( this.swarm.isMaster() ) { 
+            if ( this.isMaster() ) { 
                 // The master is the last one to leave the swarm party, so it disposes of the iterator
                 iterate.iterators.get('PgLoadData')?.delete('LoadList')
             }

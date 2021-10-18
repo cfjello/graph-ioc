@@ -1,4 +1,4 @@
-import { defineStateTypes, defineObjectTypes, Reflect } from "../../cxmeta/mod.ts"
+// import { defineStateTypes, defineObjectTypes, Reflect } from "../../cxmeta/mod.ts"
 import { actionFactory } from "../mod.ts"
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 
@@ -73,7 +73,7 @@ import { expect }  from 'https://deno.land/x/expect/mod.ts'
             
             empInst.init = function( employee: EmployeesType ) {
                 this.state = employee
-                defineStateTypes('EmployeesType', this)
+                // defineStateTypes('EmployeesType', this)
             }
             expect(typeof empInst.main).toEqual('function')
             expect(typeof empInst.init).toEqual('function')

@@ -32,7 +32,7 @@ let inspectObject = (obj: any | null ): string => {
  * @param obj The object to be examined
  * @returns string  The property type 
  */
-export function getProp<T, K extends keyof T>( obj: T , key: K ): string {
+export function getProp<T, K extends keyof T>( obj: T, key: K ): string {
     let oType = typeof  obj[key] as string
     if ( oType === 'object' || oType === 'function' ) {
         oType = inspectObject(obj[key] as Object).toString() as string
@@ -53,7 +53,7 @@ type PointerType = {
  * @param obj The object to be examined
  * @returns Object  A json Schema representation of the properties of a javascript object 
  */
-export function getObjectTypes<T>(  name: string, obj: T  ): Object {
+export function getTypes<T>(  name: string, obj: T  ): Object {
     let res = {
         $schema: "http://js-schema.org/draft-07/js-schema#",
         $id: `http://example.com/${name}.schema.json`,
@@ -65,14 +65,14 @@ export function getObjectTypes<T>(  name: string, obj: T  ): Object {
     let pointers : PointerType[] = []
     let parents: number[] = []
     let pIdx = 0 
-    pointers[pIdx] = {key: 'root', entry: res, isArray: false } as PointerType
+    pointers[pIdx] = { key: 'root', entry: res, isArray: false } as PointerType
     let p = pointers[pIdx] // the current active element
     parents[pIdx] = pIdx // First entry has no parent
 
     let nextLevel = (_p: PointerType, key: string, isArray: boolean = false): void => {
         let parentIdx = pIdx
         pIdx = pointers.length
-        pointers[pIdx] = { key: key, entry: _p.entry.properties[key], isArray: isArray} as PointerType
+        pointers[pIdx] = { key: key, entry: _p.entry.properties[key], isArray: isArray } as PointerType
         p = pointers[pIdx]
         parents[pIdx] = parentIdx
     }

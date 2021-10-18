@@ -2,8 +2,8 @@ import { StateMetaData, StoreEntry, IterateIndexMap } from "./interfaces.ts"
 import { ActionDescriptor } from "../cxctrl/interfaces.ts"
 import { ActionDescriptorFactory } from "../cxctrl/actionDescFactory.ts"
 import { storeIdSeq } from "./generators.ts"
-import { _ } from "../cxutil/mod.ts"
-import { Mutex, $log, ee, CxError } from "../cxutil/mod.ts"
+import { _ , $log, ee, CxError } from "../cxutil/mod.ts"
+// import { Mutex } from "../cxctrl/mod.ts" 
 
 const __filename = new URL('', import.meta.url).pathname;
 
@@ -21,6 +21,7 @@ export class CxStore {
     updIdx: number  = 0
     config          = new Map<string,any>()
 
+    constructor( public storeName: string = 'store') {}
     /**
      * Register saves a deep copy of an object to the Store (register is a synonym for the set function)
      * @template T The type of the object
@@ -28,8 +29,7 @@ export class CxStore {
      * @param objRef A reference to the object to be stored
      * @returns The storeId of the object 
      */
-    async register<T> ( 
-        key: string, objRef: T, ad: ActionDescriptor | undefined = undefined, init: boolean = true ): Promise<number> {       
+    async register<T> ( key: string, objRef: T, ad: ActionDescriptor | undefined = undefined, init: boolean = true ): Promise<number> {       
         let storeId: number = -1
         if ( init ) 
             storeId = this.set( key, objRef, ad ) 
@@ -246,7 +246,7 @@ export class CxStore {
     }
 
 
-    initStoreKey<T>( key: string, storeId: number = -1): StateMetaData {
+    initStoreKey<T>( key: string, storeId: number = -1 ): StateMetaData {
         //
         // Do we have a new key? If so we create the meta info
         //
@@ -265,7 +265,7 @@ export class CxStore {
      * @param threshold The number of entries in the immutable collection to keep ( less than 2 for unlimited, otherwise the number given )
      * @returns The storeId of the object 
      */
-    set<T>( key: string, objRef: T, _actionDesc: ActionDescriptor | undefined  ): number  {
+    set<T>( key: string, objRef: T, _actionDesc: ActionDescriptor | undefined = undefined ): number  {
         let newMetaInfo: StateMetaData
         let storeId    = storeIdSeq().next().value as number
         if (   _.isUndefined( key) ) throw new CxError(__filename, 'store.set()', 'STORE-0008', `Undefined store key: ${key}`)   

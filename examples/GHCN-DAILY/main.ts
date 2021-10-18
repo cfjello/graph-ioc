@@ -14,9 +14,9 @@ try {
     // 
     let pgTables = await new PgTables( 
         { 
-            dailyTables:  'keep', 
-            textTables:   'keep', 
-            fileLoadList: 'keep',
+            dailyTables:  'create', 
+            textTables:   'create', 
+            fileLoadList: 'create',
             loadData: true
         } 
     ).register()
@@ -34,10 +34,12 @@ try {
     let pgLoadData = await new PgLoadData().register()
     pgLoadData.setDependencies( 'LoadList' )
 
-    swarm.setSwarmConf('PgLoadData', 580, 580 )
+
+    swarm.swarmConfig('PgLoadData', 2, 580 )
     await swarm.addSwarm('PgLoadData', PgLoadData )
 
     await pgLoadData.run()
+
 }
 catch(err) {
     throw new CxError( __filename, 'main', 'MAIN-0001',`Failed to run main script.`, err)

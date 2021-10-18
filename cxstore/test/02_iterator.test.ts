@@ -112,6 +112,7 @@ export class FtpList3 extends Action<FtpFetchObjectType[]> {
     }
     async main (): Promise<boolean> {
         let self = this
+        self.state = []
         try {
             let ftpClient = new FTPClient(this.server) 
             await ftpClient.connect()
@@ -375,6 +376,37 @@ export class NumList extends Action<number[]> {
                 }
             }
             expect(count).toEqual(101)
+        },
+        sanitizeResources: false,
+        sanitizeOps: false
+    })
+}
+
+{
+    let numList4 = await new NumList().register('NumList4')
+
+    await numList4.run()
+
+    let itor7 = new CxContinuous<number[]>( {
+        storeKey: 'NumList4', 
+        indexKey: -1,
+        nestedIterator: true
+    })
+    Deno.test({
+        name: '02 - CxContinuous: Iterator should read a CONTINUOUS, next( done = true) will stop the loop', 
+        fn: async () => {
+            let done = false
+            let count = 1
+            while ( true ) {
+                let obj = await itor7.next(done) as IteratorResult<number> 
+                if ( ! done ) {
+                    let value: number  = obj.value[1]
+                    expect(value).toEqual(count++)
+                }
+                done = done = obj.done as boolean || count > 10 ? true : false
+                if ( done ) break
+            }
+            expect(count).toEqual(11)
         },
         sanitizeResources: false,
         sanitizeOps: false

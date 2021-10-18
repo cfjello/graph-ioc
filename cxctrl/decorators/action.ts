@@ -1,5 +1,5 @@
 import { $plog, _ } from '../../cxutil/mod.ts'
-import { ActionConfigType } from '../interfaces.ts'
+import { ActionConfigType, MetaType } from '../interfaces.ts'
 
 export function action<S>( config: ActionConfigType<S> ) {
     return function <T extends { new(...args: any[]): {} }>(constructor: T) { 
@@ -9,11 +9,13 @@ export function action<S>( config: ActionConfigType<S> ) {
             //
             // Set the meta data
             // 
-            let meta = {
+            let meta: MetaType = {
                 name:       config.name,
                 funcName:   _.isUndefined(config.ctrl) ? 'main' : config.ctrl as string,
                 init:       _.isUndefined(config.init) ? false : config.init,
+                intern:    _.isUndefined(config.intern) ? false : config.intern,
                 className:  constructor.name,
+                callCount:  0
             }
 
             let swarm = {

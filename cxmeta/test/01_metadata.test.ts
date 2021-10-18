@@ -1,5 +1,5 @@
 
-import { getObjectTypes } from "../metadata.ts"
+import { getTypes } from "../metadata.ts"
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 
 
@@ -26,7 +26,7 @@ let functionProperties0 = {
 Deno.test( {
     name: '00 - Funtion Properties inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('functionProperties', functionProperties0)
+        let p: any  = getTypes('functionProperties', functionProperties0)
         expect(p.properties!.field_01.type).toEqual("AsyncFunction")
         expect(p.properties!.field_02.type).toEqual("function")
         expect(p.properties!.field_03.type).toEqual("Function")
@@ -58,7 +58,7 @@ let valueProperties = {
 Deno.test( {
     name: '01 - Value Properties inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('valueProperties', valueProperties)
+        let p: any  = getTypes('valueProperties', valueProperties)
         expect(p.properties!.field_01.type).toEqual("number")
         expect(p.properties!.field_02.type).toEqual("number")
         expect(p.properties!.field_03.type).toEqual("undefined")
@@ -84,7 +84,7 @@ let functionProperties = {
 Deno.test( {
     name: '02 - Funtion Properties inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('functionProperties', functionProperties)
+        let p: any  = getTypes('functionProperties', functionProperties)
         expect(p.properties!.field_01.type).toEqual("number")
         expect(p.properties!.field_02.type).toEqual("number")
         expect(p.properties!.field_03.type).toEqual("boolean")
@@ -116,7 +116,7 @@ let arrayTypes = {
 Deno.test( {
     name: '03 - Array Properties inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('arrayTypes', arrayTypes)
+        let p: any  = getTypes('arrayTypes', arrayTypes)
         expect(p.properties!.field_01.type).toEqual("Int8Array")
         expect(p.properties!.field_02.type).toEqual("Uint8Array")
         expect(p.properties!.field_03.type).toEqual("Uint8ClampedArray")
@@ -143,7 +143,7 @@ let keyedTypes = {
 Deno.test( {
     name: '04 - Keyed Collections are inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('keyedTypes', keyedTypes)
+        let p: any  = getTypes('keyedTypes', keyedTypes)
         expect(p.properties!.field_01.type).toEqual("Map")
         expect(p.properties!.field_02.type).toEqual("Set")
         expect(p.properties!.field_03.type).toEqual("WeakMap")
@@ -169,7 +169,7 @@ let structuredData = {
 Deno.test( {
     name: '05 - structuredData is inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('structuredData', structuredData)
+        let p: any  = getTypes('structuredData', structuredData)
         expect(p.properties!.field_01.type).toEqual("Int8Array")
         expect(p.properties!.field_02.type).toEqual("Uint8Array")
         expect(p.properties!.field_03.type).toEqual("Uint8ClampedArray")
@@ -202,7 +202,7 @@ let controlAbstractionTypes = {
 Deno.test( {
     name: '06 - controlAbstractionTypes are inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('controlAbstractionTypes', controlAbstractionTypes)
+        let p: any  = getTypes('controlAbstractionTypes', controlAbstractionTypes)
         expect(p.properties!.field_01.type).toEqual("Int8Array")
         expect(p.properties!.field_02.type).toEqual("Uint8Array")
         expect(p.properties!.field_03.type).toEqual("Uint8ClampedArray")
@@ -260,7 +260,7 @@ let products: ProductsType = {
 Deno.test( {
     name: '01 - Types should be inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('ProductType', products)
+        let p: any  = getTypes('ProductType', products)
         expect(p.properties!.productCode.type).toEqual("symbol")
         expect(p.properties!.productName.type).toEqual("string")
         expect(p.properties!.quantityInStock.type).toEqual("number")
@@ -331,7 +331,7 @@ let employee: EmployeesType = {
 Deno.test( {
     name: '01 - Javascript specific Types should be inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('Employee', employee)
+        let p: any  = getTypes('Employee', employee)
         expect(p.properties!.recId.type).toEqual("symbol")
         expect(p.properties!.lastName.type).toEqual("string")
         expect(p.properties!.employeeNumber.type).toEqual("bigint")
@@ -388,7 +388,7 @@ let employee2: EmployeesType2 = {
 Deno.test( {
     name: '01 - Javascript multiple typed should be inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('Employee', employee2)
+        let p: any  = getTypes('Employee', employee2)
         expect( Array.isArray(p.properties!.tools.items.type) ).toEqual(true)
         expect( p.properties!.tools.items.type[0] ).toEqual('string')
         expect( p.properties!.tools.items.type[1] ).toEqual('number')
@@ -424,7 +424,7 @@ let productLine2: ProductlinesType2 =   {
 Deno.test( {
     name: '01 - Javascript functions should be inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('ProductLine', productLine2)
+        let p: any  = getTypes('ProductLine', productLine2)
         expect( p.properties!.renderFunc.type ).toEqual('Function')
         expect( p.properties!.genFunc.type ).toEqual('GeneratorFunction')
         expect( p.properties!.typedArray.type ).toEqual('Int8Array')
@@ -463,7 +463,7 @@ let productLine3 =   {
 Deno.test( {
     name: '01 - Javascript classes should be inferred correctly', 
     fn: async () => {
-        let p: any  = getObjectTypes('ProductLine3', productLine3)  
+        let p: any  = getTypes('ProductLine3', productLine3)  
         expect( p.properties!.image.type ).toEqual('Image')
         expect( p.properties!.image2.type ).toEqual('Image2')
         expect( p.properties!.images.items.type[1] ).toEqual('Image2')
@@ -479,7 +479,7 @@ Deno.test( {
     name: '01 - Javascript class property types should be inferred correctly', 
     fn: async () => {
         let image = new Image('Mona Lisa')
-        let p: any  = getObjectTypes('Image', image)  
+        let p: any  = getTypes('Image', image)  
         expect( p.properties!.name.type ).toEqual('string')
         expect( p.properties!.format.type ).toEqual('string')
         // expect( p.properties!.setName.type ).toEqual('function')
