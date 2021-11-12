@@ -27,14 +27,14 @@ nodeConfig.set('NodeDefaults',  nodeConfigDefaults )
  * Set the threshold and swarm configuration
  * 
  * @param name Name of the action element
- * @param config The NodeConfiguration  for the action element
+ * @param conf The NodeConfiguration  for the action element
  */
- export let setNodeConfig = ( key: string, config: Partial<NodeConfiguration> | Partial<SwarmConfiguration> ): void => {
+ export let setNodeConfig = ( key: string, conf: Partial<NodeConfiguration> | Partial<SwarmConfiguration> ): void => {
     if ( ! nodeConfig.has(key) ) 
-        throw new CxError(__filename, 'setNodeConfig()', 'CONF-0001', `There is no Cnfiguration with name: ${key}`)
+        nodeConfig.set(key, conf as NodeConfiguration)
     else {
         let currConfig = nodeConfig.get(key)
-        nodeConfig.set(key, _.merge(currConfig, config))
+        nodeConfig.set(key, _.merge(currConfig, conf))
     }
 }
 

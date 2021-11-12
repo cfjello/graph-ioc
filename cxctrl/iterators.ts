@@ -108,6 +108,7 @@ export async function getContinuous<T, E>(
   }
 }
 
+
 /** TODO: FIX iteratorFactory - NOT WORKING
  * Get an iterator for named stored object for a specific caller - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
  * 

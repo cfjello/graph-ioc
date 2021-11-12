@@ -31,28 +31,39 @@ export class CxStore {
      */
     async register<T> ( key: string, objRef: T, ad: ActionDescriptor | undefined = undefined, init: boolean = true ): Promise<number> {       
         let storeId: number = -1
-        if ( init ) 
-            storeId = this.set( key, objRef, ad ) 
-        else 
-            storeId = this.initStoreKey<T>(key).storeId
+        try {
+            if ( init ) 
+                storeId = this.set( key, objRef, ad ) 
+            else 
+                storeId = this.initStoreKey<T>(key).storeId
+        }
+        catch(err) {
+            throw new CxError(__filename, 'register()', 'STORE-0001', `Cannot register object named: ${key}`, err)
+        }
 
         return Promise.resolve(storeId)
     } 
 
     async unregister (key: string): Promise<boolean> {
-        if ( this.state.has(key) ) { 
-            this.state.delete(key)
-            this.meta.delete(key);
+        let isSwarmObj = key.includes('_swarm_')
+        try {
+            if ( this.state.has(key) ) { 
+                this.state.delete(key)
+                this.meta.delete(key);
 
-            if ( this.indexByName.has(key) ) {
-                ( this.indexByName.get(key) ?? []) .forEach( (jobKey: string)  => {
-                    this.index.get(jobKey)?.delete(key)  
-                })
-                this.indexByName.delete(key)
+                if ( ! isSwarmObj &&  this.indexByName.has(key) ) {
+                    ( this.indexByName.get(key) ?? []) .forEach( (jobKey: string)  => {
+                        this.index.get(jobKey)?.delete(key)  
+                    })
+                    this.indexByName.delete(key)
+                }
             }
+            else 
+                throw Error(`Cannot find a store object named: ${key}`)
         }
-        else 
-            throw new CxError(__filename, 'unregister()', 'STORE-0002', `Cannot find a store object named: ${key}`)
+        catch (err) {
+            throw new CxError(__filename, 'unregister()', 'STORE-0002', `Unregister failed for: ${key}`)
+        }
 
         return Promise.resolve(true)
     }
@@ -190,7 +201,6 @@ export class CxStore {
         }
     }
 
-
     /**
      * Gets the object-state for a named indexed object of type S
      * 
@@ -245,16 +255,20 @@ export class CxStore {
                 return this.state.get(key)!.get(storeId) as StoreEntry<T> 
     }
 
-
     initStoreKey<T>( key: string, storeId: number = -1 ): StateMetaData {
         //
         // Do we have a new key? If so we create the meta info
         //
-        if ( ! this.state.has( key ) )  {
-            this.state.set( key, new Map<number,T>() ) 
+        try {
+            if ( ! this.state.has( key ) )  {
+                this.state.set( key, new Map<number,T>() ) 
+            }
+            this.meta.set( key, { storeId: storeId, prevStoreId: -1, prevJobId: -1 , prevTaskId: -1 } as StateMetaData )
         }
-        this.meta.set( key, { storeId: storeId, prevStoreId: -1, prevJobId: -1 , prevTaskId: -1 } as StateMetaData )
-        return this.meta.get(key)!   
+        catch(err) {
+            throw new CxError(__filename, 'initStoreKey.set()', 'STORE-0008', `Cannot set key: ${key}`,err)  
+        }
+            return this.meta.get(key)!   
     }
 
     /**
@@ -265,11 +279,9 @@ export class CxStore {
      * @param threshold The number of entries in the immutable collection to keep ( less than 2 for unlimited, otherwise the number given )
      * @returns The storeId of the object 
      */
-    set<T>( key: string, objRef: T, _actionDesc: ActionDescriptor | undefined = undefined ): number  {
-        let newMetaInfo: StateMetaData
-        let storeId    = storeIdSeq().next().value as number
-        if (   _.isUndefined( key) ) throw new CxError(__filename, 'store.set()', 'STORE-0008', `Undefined store key: ${key}`)   
+    set<T>( key: string, objRef: T, _actionDesc: ActionDescriptor | undefined = undefined ): number  { 
         if ( ! _.isObject( objRef) ) throw new CxError(__filename, 'store.set()', 'STORE-0009', `Object must be passed to the store`)
+        let storeId    = storeIdSeq().next().value as number
         try {  
             //
             // If the ActionDescriptor is not initialized ( that is if this was called directly ) then initialize

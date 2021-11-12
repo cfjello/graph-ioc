@@ -4,6 +4,6 @@
 		"emitDecoratorMetadata": true,
 		"alwaysStrict": false,
 		"noImplicitUseStrict": true,
-		"removeComments": false,
+		"removeComments": true,
 	}
 }

@@ -1,6 +1,6 @@
 import * as log from "https://deno.land/std/log/mod.ts";
 import * as path from "https://deno.land/std/path/mod.ts"
-import { getMac } from 'https://cdn.depjs.com/mac/mod.ts'
+// import { getMac } from 'https://cdn.depjs.com/mac/mod.ts'
 import { _ } from '../cxutil/lodash.ts'
 
 export type ErrLogType = {
@@ -18,7 +18,7 @@ export type ErrLogType = {
 const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 export const $logDir: string = path.resolve(`${__dirname}/logs`)
 
-let mac = (await getMac() as string).replace(/:/g,'')
+// let mac = (await getMac() as string).replace(/:/g,'')
         // you can change format of output message using any keys in `LogRecord`
         // formatter: "{levelName} {msg}",
 
@@ -44,7 +44,7 @@ await log.setup({
           let msg = JSON.parse( msgJSON )
           let logEntry = _.merge ( { 
             level: logRecord.levelName,
-            mac: mac, 
+            // mac: mac, 
             date: dateEntry, 
           }, msg )       
           return `${JSON.stringify(logEntry)!}` as string
@@ -58,7 +58,7 @@ await log.setup({
           let msg = JSON.parse(perfRecord.msg)
           let logEntry  = _.merge ( { 
             level: perfRecord.levelName,
-            mac: mac, 
+            // mac: mac, 
             date: dateEntry 
           }, msg )
           return `${JSON.stringify(logEntry)}`

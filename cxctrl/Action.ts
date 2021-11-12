@@ -51,7 +51,6 @@ export class Action<S> {
     isSwarmMaster(): boolean {  
         let master = false
         if ( this.swarm.init ) {
-            // TODO DEL master = _.isUndefined(this.swarm.swarmName) ||  this.swarm.swarmName === this.meta.name 
             master = (this.swarm as SwarmChildType).swarmName === this.meta.name
         }
         return master
@@ -81,7 +80,6 @@ export class Action<S> {
      */
     setDependencies = (... args: string[] ): string [] => { 
         let dependencies = _.uniq( args ) 
-        // TODO: DEL let name = !_.isUndefined( this.swarm ) && ( this.swarm!.swarmName ?? "__No_Name__") !== this.meta.name ? this.swarm!.swarmName : this.meta.name
         ctrl.addDependencies( this.getName(), dependencies )
         return dependencies
     }
@@ -119,7 +117,6 @@ export class Action<S> {
     */
     run = async (forceRunRoot: boolean = false): Promise<RunIntf>   => {
         try {
-            if ( ctrl.debug ) console.log(`Running ${this.meta.name} promise chain`)
             let promiseChain = ctrl.getPromiseChain(this.meta.name!, false, forceRunRoot )
             await promiseChain.run()
             return Promise.resolve(promiseChain)
@@ -176,6 +173,9 @@ export class Action<S> {
             ctrl.initCounts.set( name, ctrl.initCounts.has( name ) ? ctrl.initCounts.get(name)! + 1 : 1 )
             let _cnt_ = ctrl.initCounts.get(name)
             await ctrl.addAction( this as Action<S>, _cnt_ )
+            if ( this.meta.init ) {
+                ctrl.publish(self)
+            }
         }
         catch(err) {
             throw new CxError('Action.ts', 'register()', 'ACT-0003', `Failed to register ${name}`, err)
@@ -184,13 +184,12 @@ export class Action<S> {
     }
 
     __exec__ctrl__function__  = async (actionDesc: ActionDescriptor): Promise<boolean> => {
-        let res = false
+        let res = false;
         if ( ! this.swarm.init || this.swarm.canRun ) {
             try {
-                if ( ctrl.debug ) console.log(`Emit ${actionDesc.actionName}_${actionDesc.jobId}_run`)
                 ee.emit(`${actionDesc.actionName}_${actionDesc.jobId}_run`)
-                this.currActionDesc = actionDesc             
-                res = await (this as any)[this.meta.funcName!]()
+                this.currActionDesc = actionDesc;        
+                res = await (this as any)[this.meta.funcName!]();   
             }
             catch(err) {
                 throw new CxError('Action.ts', '__exec__ctrl__function__', 'ACT-0004', `Failed call ${this.meta.className}.${this.meta.funcName}`, err)

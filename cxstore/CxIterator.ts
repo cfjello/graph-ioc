@@ -31,7 +31,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
         return ! _.isUndefined(obj) && typeof obj[Symbol.iterator] === 'function';
     }
 
-    next(caller: any = undefined ): IteratorResult<T> | IteratorResult<E> { /* done: boolean = false */ 
+    next(caller: any = undefined ): IteratorResult<T> | IteratorResult<E> { 
         try {
             if ( caller !== undefined && ! (caller as Action<any>).swarm?.canRun ) {
                 //
@@ -207,7 +207,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
     async next( caller: any = undefined ): Promise<IteratorResult<T> | IteratorResult<E>> {
         const nextMutex = await this.mutex.acquire()
         try {
-            if ( caller !== undefined && ! (caller as Action<any>).swarm?.canRun ) {
+            if ( caller !== undefined && ! (caller as Action<any>).swarm.canRun ) {
                 //
                 // This provides runtime control for swarm-objects 
                 // 

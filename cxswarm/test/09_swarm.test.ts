@@ -102,7 +102,7 @@ Deno.test( {
 })
 
 Deno.test( {
-    name: '09 - FileAppend has appended to FileList', 
+    name: '09 - FileAppend has run and appended to FileList', 
     fn: async () => {
         expect( ctrl.store.has('FileAppend') ).toBeTruthy()
         expect( (ctrl.getStateData('FileAppend', -1) as string[]) ).toBeDefined()

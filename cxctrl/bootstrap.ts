@@ -42,7 +42,7 @@ export async function bootstrap<T,C>( Type: Constructor<T>, conf: ActionConfigTy
             //
             // This is not a swarm object. Register this new action object
             //
-            await instance.register()
+            await instance.register(name)
         }
         else if ( instance.isSwarmMaster() ) swarm.setSwarmCtrl(instance, 'master')
     }

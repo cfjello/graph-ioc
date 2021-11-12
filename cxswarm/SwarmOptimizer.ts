@@ -1,108 +1,146 @@
-import { action, Action } from "../cxctrl/mod.ts"
+import { action, Action, ctrl } from "../cxctrl/mod.ts"
 import * as swarm  from "./Swarm.ts"
 import { ee, CxError, _ } from "../cxutil/mod.ts"
-import { SwarmConfiguration, Advice , OptimizerType } from "./interfaces.ts"
-import EventEmitter from "https://raw.githubusercontent.com/denolibs/event_emitter/master/lib/mod.ts";
+import { SwarmConfiguration, Advice } from "./interfaces.ts"
+import { StoreEntry } from "../cxstore/mod.ts";
+
 const __filename = new URL('', import.meta.url).pathname
 
 @action ({
-    init:   false,
+    init:   true,
     intern: true,
-    state:  {} as OptimizerType,
+    state:  {} as Advice,
     ctrl: 'optimize'
 }) 
-export class SwarmOptimizer extends Action<OptimizerType> {
-    self = this   
-    // config: SwarmConfiguration  
-    intervalTimer:    number  = performance.now()
-    init: boolean =   false
-    
+export class SwarmOptimizer extends Action<Advice> {
+    self     = this   
+    buffer   = [] as number[]
+    timerCnt = 0
 
-    constructor( _config: Partial<SwarmConfiguration>, public swarmMasterName: string ) {
-        super( _.merge ( swarm.swarmConfigDefaults( _config ) , {
-            buffer:     [],
-            rewards:    [],
-            advices:    []
-        }))
+    constructor( 
+        _conf: Partial<SwarmConfiguration>, 
+        public swarmMasterName: string, 
+        public conf: SwarmConfiguration = swarm.swarmConfigDefaults( _conf )  
+    ) {
+        super({
+            advice: -1, 
+            reward: -1 ,
+            ts: performance.now() - (conf.timerMS! + 1),
+            done: false,
+            handled: true
+        })
     }
 
-    get(): OptimizerType | undefined {
+    get(): Advice | undefined {
         return this.state
     }
 
-    getAdvice(): Advice {
+
+    getCurrAdvice(): Advice {
         try {
-            let advices = this.state.advices
-            return advices[advices.length -1]
+            return ctrl.getStateData(this.meta.name!)
         }
         catch(err) {
             throw new CxError(__filename, 'getAdvice',  'OPTI-0001', `Requested Advice:  ${this.meta.name} - does not exist.`, err) 
         } 
     }
 
-    optimize() {
-        let s = this.state
-        // let adviceResult = {}
+    optimize(reward: number) {
+        // let s = this.state
         try {
-            let last            = s.rewards.length - 1
-            let prevAdv         = s.advices.length - 1
-            let diff: number    = last > 0 ? s.rewards[last].value - s.rewards[last -1].value : 0
-            let reward: number  = s.rewards[last].value
+            let mapRef: Map<number, StoreEntry<Advice>> = ctrl.getMapRef(this.meta!.name!)
+            let handled: Advice[]      = []
+            mapRef.forEach( ( entry ) => { if (entry.data.handled) handled.push(entry.data) } )
+            let prevHandled: Advice[]  = handled.reverse() ?? []
 
-            if ( s.approach === 'binary' ) {
-                if ( prevAdv < 0  ) { // Initial state
-                    let advice  =  s.minimum + Math.round( ( s.maximum - s.minimum ) / 2 )
-                    s.advices.push( { done:false, advice: advice, reward: reward } ) 
+            // swarm.sbug('mapRef size: %d, handled.length: %d', mapRef.size, handled.length)
+            let prev         = prevHandled[0]
+
+            let diff: number = reward - prev.reward
+            if (this.conf.approach === 'binary' ) {
+                if ( prev.advice < 0  ) { // Initial state
+                    this.update(
+                        {
+                            advice:  this.conf.minimum + Math.round( ( this.conf.maximum - this.conf.minimum ) / 2 ),
+                            done:    false,
+                            handled: false
+                        }
+                    )
                 }
-                else if ( ! s.advices[prevAdv].done ) {
-                    if ( diff > 0 ) { // We continue upwards
-                        let advice  = s.advices[prevAdv].advice + Math.round( ( s.maximum - s.advices[prevAdv].advice ) / 2 )
-                        let done = advice !==  s.advices[prevAdv].advice ? false : true
-                        if ( done ) 
-                            s.advices[prevAdv].done = true
-                        else 
-                            s.advices.push( { done: done, advice: advice, reward: reward } )
+                else if ( ! prev.done ) {
+                    if ( diff > 0 ) { // We continue upwards 
+                        let advice = prev.advice + Math.round( ( this.conf.maximum - prev.advice ) / 2 )
+                        let done   = advice !==  prev.advice ? false : true
+                        this.update( 
+                            {
+                                advice:  advice,
+                                done:    done,
+                                handled: false
+                            }
+                        )
                     }
                     else { // Or we go down instead
-                        let lowerBound =  prevAdv > 1 ? s.advices[prevAdv-1].advice : s.minimum
-                        let advice = s.advices[prevAdv].advice - Math.round( ( s.advices[prevAdv].advice - lowerBound ) / 2 )
-                        let done = advice <=  s.advices[prevAdv].advice ? true : false
-                        if ( done ) 
-                            s.advices[prevAdv].done = true
-                        else 
-                            s.advices.push( { done: done, advice: advice, reward: reward } )
+                        let i = 1
+                        let lowerBound  = this.conf.minimum
+
+                        for ( ; i < prevHandled.length && prevHandled[i].advice  > prev.advice; i++ ) {}
+                        if ( i < prevHandled.length ) lowerBound = prevHandled[i].advice
+
+                        let advice = prev.advice - Math.round( ( prev.advice - lowerBound ) / 2 )
+                        swarm.sbug('Binary DOWN Advice %d from prev.advice: %d and lowerBound: %d' , advice,  prev.advice, lowerBound )
+                        let done = advice !==  prev.advice ? false : true
+                        this.update( 
+                            {
+                                advice:  advice,
+                                done:    done,
+                                handled: false
+                            }
+                        )
                     }
+                    swarm.sbug('Binary Reward: %d Advice %d' , this.state.reward, this.state.advice )
                 }
             }
-            else if ( s.approach === 'interval' ) {
-                if ( prevAdv < 0 ) { // Initial state
-                    let advice  =  s.minimum + s.interval!
-                    if ( advice <= s.maximum )  {
-                        s.advices.push( { done:false, advice: advice, reward: reward } )
-                    }
-                    else {
-                        s.advices.push( { done: true, advice: s.maximum, reward: reward } )
-                    }
+            else if ( this.conf.approach === 'interval' ) {
+                if ( prev.advice < 0 ) { // Initial state
+                    this.update(
+                        {
+                            advice:  this.conf.minimum + this.conf.interval!,
+                            done:    false,
+                            handled: false
+                        }
+                    )
                 }
-                else if ( ! s.advices[prevAdv].done ) { 
+                else if ( ! prev.done ) { 
                     if ( diff > 0 ) { // We continue upwards
-                        let adviceValue  =  s.advices[prevAdv].advice + s.interval!
-                        let advice = adviceValue < s.maximum ? adviceValue : s.maximum
-                        let done = advice !==  s.advices[prevAdv].advice ? false : true
-                        if ( done ) 
-                            s.advices[prevAdv].done = true
-                        else 
-                            s.advices.push( { done: done, advice: advice, reward: reward } )
+                        let adviceValue  =  prev.advice + this.conf.interval!
+                        let advice = adviceValue < this.conf.maximum ? adviceValue : this.conf.maximum
+                        let done = advice !==  prev.advice ? false : true
+                        this.update( 
+                            {
+                                advice:  advice,
+                                done:    done,
+                                handled: false
+                            }
+                        )
                     }
-                    else { // We go down instead
-                        let adviceValue = s.advices[prevAdv].advice - s.interval!
-                        let advice = adviceValue > s.minimum ? adviceValue : s.minimum
-                        let done = advice !==  s.advices[prevAdv].advice ? false : true
-                        if ( done ) 
-                            s.advices[prevAdv].done = true
-                        else 
-                            s.advices.push( { done: done, advice: advice, reward: reward } )
+                    else { // We go down instead, but only in step  interval
+                        let i = 1
+                        let lowerBound  = this.conf.minimum
+
+                        for ( ; i < prevHandled.length && prevHandled[i].advice  > prev.advice; i++ ) {}
+                        if ( i < prevHandled.length ) lowerBound = prevHandled[i].advice
+                       
+                        let advice = lowerBound > this.conf.minimum ? lowerBound : this.conf.minimum
+                        let done = advice !==  prev.advice ? false : true
+                        this.update( 
+                            {
+                                advice:  advice,
+                                done:    done,
+                                handled: false
+                            }
+                        )
                     }
+                    swarm.sbug('Interval Reward: %d Advice %d' , this.state.reward, this.state.advice )
                 }
             }
         }
@@ -113,30 +151,44 @@ export class SwarmOptimizer extends Action<OptimizerType> {
 
     reward( value: number, name: string = 'swarm' ) { 
         let s = this.state
-        console.log( `Into Reward: ${value}`)
         try {
-                let ts = performance.now()
-                if ( s.buffer.length === 0 ) {
-                    s.rewards.push( { ts: ts, value: 0 } )
-                }
-                s.buffer.push(value)
-                let bufferLen = s.buffer.length
-                let len = s.rewards.length
-                if ( len > 0 && ( performance.now() - s.rewards[len-1]!.ts ) > s.timerMS! ) {
-                    // Sum up the buffer
-                    const reducer = (accumulator: number, currentValue: number) => accumulator + currentValue
-                    const reward =  s.buffer.reduce(reducer) 
-                    console.log( `Calculated Reward: ${reward}`)
-                    s.rewards.push( { ts: ts, value: reward } )
-                    if ( s.rewards.length > s.skipFirst! ) {
-                        this.optimize()
+            let prev = this.getCurrAdvice()
+            //
+            // Update the local buffer
+            //
+            this.buffer.push(value)
+            let bufferLen = this.buffer.length
+            
+            let now = performance.now()
+
+            if ( value === 2000 || value === 5000 )   { // Testing
+                swarm.sbug('Reward got: %d vs. previous reward: %d ', value, this.state.reward )
+                swarm.sbug(
+                    'TS now: %d vs. previous TS: %d and diff: %d > %d', 
+                    Math.round(now), 
+                    Math.round(prev.ts), 
+                    Math.round(now - prev.ts),
+                    Math.round( this.conf.timerMS! ) )
+            }
+
+            if ( ( now - prev.ts ) > this.conf.timerMS! ) {
+                this.timerCnt++
+                // Sum up the buffer
+                const reducer = (accumulator: number, currentValue: number) => accumulator + currentValue
+                const reward  =  this.buffer.reduce(reducer) 
+
+                if ( prev.handled &&  this.conf.skipFirst! < this.timerCnt ) {
+                    s.reward =  reward
+                    this.optimize(reward)
+                    if ( s.advice  !== prev.advice ) {
+                        s.ts = now
                         this.publish()
-                        // Reset the buffer for next run
-                        s.buffer = s.buffer.splice(0, bufferLen)
-                        // Notify the swarm master
-                        ee.emit( `${this.swarmMasterName}_advice`, name )
+                        ee.emit( `${this.swarmMasterName}_advice`, this.meta.name, `${this.swarmMasterName}` )
                     }
                 }
+                // Reset the buffer for next run
+                this.buffer.splice(0, bufferLen)
+            }
         }
         catch ( err ) {
             throw new CxError(__filename, 'reward()', 'OPTI-0003', `Failed to add reward measure.`, err)

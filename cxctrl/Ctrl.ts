@@ -2,25 +2,33 @@ import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
 import { CxStore, CxIterator, CxContinuous  }  from "../cxstore/mod.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
-import {$log, perf, ee, CxError, _ } from "../cxutil/mod.ts"
+import {$log, perf, ee, CxError, _, Mutex, debug } from "../cxutil/mod.ts"
 import { RunIntf, ActionDescriptor } from "./interfaces.ts"
-import { SwarmMasterType } from "../cxswarm/interfaces.ts"
+import { SwarmChildType, SwarmMasterType } from "../cxswarm/interfaces.ts"
 import { Action } from './mod.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
 import { ActionDescriptorFactory } from "./actionDescFactory.ts"
 import { config } from "../cxconfig/mod.ts"
 import { NodeConfiguration } from "../cxconfig/interfaces.ts"
 
+
 const __filename = new URL('', import.meta.url).pathname
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
-export let debug = false
 
-
+// Main User Data Store
 export let store = new CxStore()
-
-// Run state
+// Ctrl Run state
 export let runState  = new CxStore('intern')
 
+//
+// Mutex 
+// 
+export const mutex = new Mutex()
+
+//
+// Debug logger
+//
+const cbug = debug('ctrl') 
 
 //
 // Performance measurement and logger instance
@@ -66,9 +74,8 @@ export function getState<T>(name:string, idx: number = -1, dataOnly: boolean = t
         let action = actions.get(name)!
         let _store = action.meta.intern ? runState: store
 
-        console.warn(`Store picked: ${_store.storeName}`)
         keys = [ ..._store.state.keys() ]
-        console.warn(`Store Keys: ${keys}`)
+        cbug('Store Keys: %o', keys)
         if ( dataOnly )
             return _store.get(name, idx, dataOnly) as T
         else
@@ -79,11 +86,30 @@ export function getState<T>(name:string, idx: number = -1, dataOnly: boolean = t
     }
 }
 
+export function  hasStateData<T>(name:string, idx: number = -1 ): boolean {
+    let storeRec = getState<T>( name, idx, false ) as StoreEntry<T> 
+    return ( storeRec && ! _.isUndefined( storeRec.data ) ) 
+}
+
 export function  getStateData<T>(name:string, idx: number = -1 ): T {
-    console.warn(`getStateData() for: ${name}`)
+    cbug(`getStateData() for: ${name}`)
     return getState<T>( name, idx, true ) as T
 }
 
+/**
+ * Gets a reference to the named object of type <StoreEntry<T>>
+ * 
+ * @param key The storeName of the indexed object
+ * @return T | undefined if the indexed object does not exist
+ */
+export function getMapRef<T>(key: string): Map<number, StoreEntry<T>> {
+    let action = actions.get(key)!
+    let _store = action.meta.intern ? runState: store
+    if ( _store.state.has(key) )
+        return _store.state.get(key) as Map<number, StoreEntry<T>>
+    else 
+        return new Map<number, StoreEntry<T>>()
+}
 // 
 // Job functions 
 //
@@ -191,7 +217,6 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
         }
         finally {
             perf.mark( 'addAction', actionDesc )
-            // $plog.debug('Flushing the performence info')
         }
     }
     return Promise.resolve(action)
@@ -277,8 +302,6 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
     let actionsToRun = new Map<string, ActionDescriptor>()
     let inversHierarchy  = new Map<string, string>()
 
-  
-
     let prevNodeIdent: string[] = []
     if ( graph.hasNode( rootName ) ) { 
         //     
@@ -286,13 +309,7 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
         //  
         let hierarchy =  graph.hierarchyOf( rootName, true ) 
         let maxThreshold = 2 // The minimum number it can be
-        if ( debug ) {
-            console.log ( `HIE: {`)
-            hierarchy.forEach( ( value, key ) => {
-                console.log ( `${key}: ${value}` ) 
-            })
-            console.log ( `}`)
-        }
+        cbug('HIE: %O', hierarchy)
 
         hierarchy.forEach( (ident: string, name: string )  => {
             let action   = actions.get(name)!
@@ -350,12 +367,7 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
     }
     p.mark('getActionsToRun')
     // descriptors.set(jobId as number, actionsToRun)
-    if ( debug ) {
-        console.log(`Actions in getActionsToRun():`)
-        for ( let [key, ad] of actionsToRun ) {
-            console.log( `  ${key}` )
-        }
-    }
+    cbug('Actions in getActionsToRun(): %o', Object.keys(actionsToRun))
     return _.clone(actionsToRun)
 }
 
@@ -378,10 +390,9 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
     let actionsToRun = getActionsToRun(actionName, jobId, runRoot)
     //
     // baseKey is the object initiating the execution chain
-    if ( debug ) {
-        console.log(`Actions to run:`)
-        console.log( [... actionsToRun.keys()] )
-    }
+    //
+    cbug('Actions to run: %o', [... actionsToRun.keys()] )
+
     const baseKey = [... actionsToRun.keys()].reverse()[0] 
     
     // Unique job id: eventName
@@ -437,10 +448,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
                 children.forEach( swarmName => {
                     let beginEvent = `${swarmName}_${jobId}_run`
                     swarmArr.push(new Promise( (resolve, reject) => { ee.on(beginEvent, () => {
-                        if ( debug ) {
-                            let msg = `${key} GOT: ${beginEvent}`
-                            console.log(msg)
-                        }
+                        cbug('%s GOT: %s', key, beginEvent)
                         resolve(beginEvent) 
                         })  
                     }) 
@@ -473,17 +481,17 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
                     * - The runAll flag is set to true
                     * - The object callCount is 0 (firstRun) and the object.meta.init is set to false (the default)
                     */
-                   try {
-                        if ( actions.has(key) ) {
-                            let actionObj = actions.get(key) as Action<any> 
+                    let actionObj = actions.has(key) ? actions.get(key) as Action<any>: undefined
+                    try {
+                        if ( actionObj ) {
+                            (actionObj.swarm as SwarmChildType).active = true
                             let _store    = action.meta.intern ? runState: store
                             actionObj.currActionDesc = ad
                             let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
                             let dirty = ( ( ad.forceRunRoot && ad.storeName === ad.rootName ) || isDirty( actionObj ) ||  runAll || firstRun )
-                            if ( debug ) {
-                                console.log( `DIRTY[${key}]: ${dirty}`)
-                                console.log( `FIRSTRUN[${key}]: ${firstRun}`)
-                            }
+                            
+                            cbug  ( 'DIRTY[%s]: %s', key, dirty)
+
                             if ( dirty ) {
                                 res = await actionObj.__exec__ctrl__function__ (ad)
                                 ad.ran = true
@@ -499,7 +507,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
                             ad.success  = res || ! dirty                    
                             ad.storeId = _store.getStoreId( actionObj.meta.name!, -1 )
                             ad.eventName = eventName
-                            if ( debug ) console.log( `P_${key}_${ad.jobId}: ${JSON.stringify(ad)}`)
+                            cbug('P_%s_%d: %j', key , ad.jobId, ad)
                             actionObj.currActionDesc = ad
                         }
                         else {
@@ -511,6 +519,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
                         throw new CxError(__filename, 'promise()', 'CTRL-0008', `action ${ad.actionName}.promise exec failed`, err)
                     }
                     finally {
+                        if ( actionObj ) (actionObj.swarm as SwarmChildType).active = false 
                         ee.emit(finishEvent)
                         p.mark(`P_${key}_${ad.jobId}`, ad)
                         resolve(key)

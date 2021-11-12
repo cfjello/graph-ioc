@@ -6,23 +6,51 @@
     "configurations": [
         {
             "name": "Deno RUN <file>",
-            "type": "node",
+            "type": "pwa-node",
             "request": "launch",
-            "cwd": "${workspaceFolder}\\cxctrl",
+            "cwd": "${workspaceFolder}",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["run", "--inspect-brk" ,  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
-            "port": 9229,
-            "outputCapture": "std",
-
+            "runtimeArgs": [
+                "run", 
+                "--inspect-brk",  
+                "-A", 
+                "--unstable", 
+                "--config", "${workspaceFolder}\\tsconfig.json", 
+                "${file}"
+            ],
+            "attachSimplePort": 9229,
+            "outputCapture": "std"
         },
         {
             "name": "Deno TEST <file>",
-            "type": "node",
+            "type": "pwa-node",
             "request": "launch",
             "runtimeExecutable": "deno",
-            "runtimeArgs": ["test", "--inspect",  "-A", "--unstable", "--config", "${workspaceFolder}\\tsconfig.json", "${file}"],
-            "port": 9229,
-            "outputCapture": "std"
+            "runtimeArgs": [
+                "test", 
+                "--inspect-brk",  
+                "-A", 
+                "--unstable", 
+                "--config", "${workspaceFolder}\\tsconfig.json", 
+                "${file}"
+            ],
+            "attachSimplePort": 9229
           },
+          {
+            "request": "launch",
+            "name": "RUN Program",
+            "type": "pwa-node",
+            "cwd": "${workspaceFolder}",
+            "runtimeExecutable": "deno",
+            "runtimeArgs": [
+                "run",
+                "--unstable",
+                "--inspect",
+                "--A", 
+                "${file}"
+            ],
+            "attachSimplePort": 9229,
+            "outputCapture": "std"
+        }
     ]
 }
