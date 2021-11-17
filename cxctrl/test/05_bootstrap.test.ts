@@ -3,6 +3,7 @@ import { bootstrap } from "../bootstrap.ts"
 import { ctrl, Action, action }  from '../mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 import { RunIntf, ActionDescriptor } from "../interfaces.ts"
+import { promiseChainArgsFac } from "file:///C:/Work/graph-ioc/cxctrl/factories.ts";
 
 //
 // Same test as part of the 02_runChain.test.ts, but this with bootstrap'ed classes
@@ -72,9 +73,9 @@ class ObjS5  extends Action<S> {
         name: '05 - Bootstrap: It should RUN the Dependency Promises in order',  
         fn: async () => {       
             let nameR5 = ObjR5.name
-            let actionsToRun = ctrl.getActionsToRun('ObjR5')
+            let actionsToRun = ctrl.getActionsToRun(promiseChainArgsFac({ actionName: 'ObjR5'}) )
             expect(actionsToRun.size).toEqual(4)
-            let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR5', true)
+            let promiseChain: RunIntf = ctrl.getPromiseChain(promiseChainArgsFac({ actionName: 'ObjR5', runAll: true}) )
             expect(ObjR5.name).toEqual(nameR5)
             await promiseChain.run()
             expect(instR5.state.name).toEqual('R5:[P5:[],Q5:[S5:[]]]') 
@@ -89,7 +90,7 @@ class ObjS5  extends Action<S> {
         fn: async () => { 
             let nameR5 = ObjR5.name
             // let actionsToRun = ctrl.getActionsToRun('ObjR5')
-            let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR5', false)
+            let promiseChain: RunIntf = ctrl.getPromiseChain(promiseChainArgsFac({ actionName: 'ObjR5', runAll: false}))
             expect(ObjR5.name).toEqual(nameR5)
             await promiseChain.run()
             
@@ -126,7 +127,7 @@ class ObjS5  extends Action<S> {
             instS5.state.age = 199
             instS5.publish()
             await ctrl.runTarget('ObjQ5') // This will now be dirty
-            let runChain: RunIntf = ctrl.getPromiseChain('ObjR5', false)
+            let runChain: RunIntf = ctrl.getPromiseChain(promiseChainArgsFac({ actionName: 'ObjR5', runAll: false}))
             await runChain.run()
             let tasks: Map<string, ActionDescriptor>   = runChain.getActionsToRun()!
 

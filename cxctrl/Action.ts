@@ -7,6 +7,7 @@ import { SwarmOptimizer } from "../cxswarm/mod.ts"
 import { MetaType, StateKeys } from "./interfaces.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
 import EventEmitter from "https://raw.githubusercontent.com/denolibs/event_emitter/master/lib/mod.ts";
+import { promiseChainArgsFac } from "file:///C:/Work/graph-ioc/cxctrl/factories.ts";
 
 //
 // Used by Action udate to infor the base type in case
@@ -117,7 +118,13 @@ export class Action<S> {
     */
     run = async (forceRunRoot: boolean = false): Promise<RunIntf>   => {
         try {
-            let promiseChain = ctrl.getPromiseChain(this.meta.name!, false, forceRunRoot )
+            let promiseChain = ctrl.getPromiseChain(
+                promiseChainArgsFac( { 
+                    actionName: this.meta.name!, 
+                    runAll: false, 
+                    runRoot: forceRunRoot 
+                })
+            )
             await promiseChain.run()
             return Promise.resolve(promiseChain)
         }

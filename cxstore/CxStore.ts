@@ -1,4 +1,5 @@
-import { StateMetaData, StoreEntry, IterateIndexMap } from "./interfaces.ts"
+import { StateMetaData, StoreEntry} from "./interfaces.ts"
+import { IterateIndexMap }  from "../cxiterate/interfaces.ts"
 import { ActionDescriptor } from "../cxctrl/interfaces.ts"
 import { ActionDescriptorFactory } from "../cxctrl/actionDescFactory.ts"
 import { storeIdSeq } from "./generators.ts"
@@ -234,7 +235,7 @@ export class CxStore {
                     storeId = this.meta.get(key)!.storeId
             }
         }
-        else 
+        else
             throw new CxError(__filename, 'store.getStoreId()', 'STORE-0007', `Key: ${key} does not exist`)
         return storeId
     }

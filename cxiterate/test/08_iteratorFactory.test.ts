@@ -1,4 +1,5 @@
-import { Action, action, iterate, CxIterator, CxContinuous } from '../mod.ts'
+import { Action, action  } from '../../cxctrl/mod.ts'
+import { iterate, IteratorConfType } from "../mod.ts"
 import { expect } from 'https://deno.land/x/expect/mod.ts'
 import { CxError, _, ee } from "../../cxutil/mod.ts"
 
@@ -51,15 +52,15 @@ export class NumAppend extends Action<string[]> {
         this.state = [] as string[]
         // console.log(`RUNNING ${ _.isUndefined(this.swarm!.swarmName!) ? this.meta.name : this.swarm!.swarmName }`)
         try {
-            let iConf = {
-                callee: this.meta.name,
-                target: 'NumList',
+            let iConf: Partial<IteratorConfType> = {
+                requestObj: this.meta.name!,
+                targetObj: 'NumList',
                 indexKey: this.getJobId(),
                 nestedIterator: true,
                 continuous: false
             }
             let cnt = 0
-            let itor = await iterate.iteratorFactory<EntryType[], EntryType>(iConf) // as CxContinuous<EntryType[],EntryType>
+            let itor = await iterate.factory<EntryType[], EntryType>(iConf) // as CxContinuous<EntryType[],EntryType>
             let obj: IteratorResult<EntryType>
             while (cnt++ < this.maxCount && itor && (obj = itor.next() as IteratorResult<EntryType>) && !obj.done) {
                 let records = obj.value as any
@@ -101,15 +102,15 @@ export class NumAppend2 extends Action<string[]> {
         // console.log(`RUNNING ${ _.isUndefined(this.swarm!.swarmName!) ? this.meta.name : this.swarm!.swarmName }`)
         this.state = [] as string[]
         try {
-            let iConf = {
-                callee: this.meta.name,
-                target: 'NumList2',
+            let iConf: Partial<IteratorConfType> = {
+                requestObj: this.meta.name!,
+                targetObj: 'NumList',
                 indexKey: -1,
                 nestedIterator: true,
                 continuous: true
             }
             let cnt = 0
-            let itor = await iterate.iteratorFactory<EntryType[], EntryType>(iConf)
+            let itor = await iterate.factory<EntryType[], EntryType>(iConf)
             let obj: IteratorResult<EntryType>
             while (cnt++ < this.maxCount && itor && (obj = await itor.next() as IteratorResult<EntryType>) && !obj.done) {
                 let records = obj.value as any

@@ -48,7 +48,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
                 return this.nextInStore() as IteratorResult<T>
         }
         catch (err) {
-            throw new CxError(__filename, 'CxIterator.next()', 'STORE-0021', `Cannot return next entry.`, err)
+            throw new CxError(__filename, 'CxIterator.next()', 'ITOR-0010', `Cannot return next entry.`, err)
         }
     }
 
@@ -89,7 +89,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
                 return undefined
         }
         catch ( err ) {
-            throw new CxError(__filename, 'CxIterator.getEntries()', 'STORE-0015', `Cannot return iterable entries due to: ${err}`, err)
+            throw new CxError(__filename, 'CxIterator.getEntries()', 'ITOR-0011', `Cannot return iterable entries due to: ${err}`, err)
         }
     }
 
@@ -134,7 +134,7 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
            return nextEntry as IteratorResult<E>
         }
         catch ( err ) {
-            throw new CxError(__filename, 'CxIterator.nextInEntry()', 'STORE-0016', `Cannot return item from iterable store entry.`, err)
+            throw new CxError(__filename, 'CxIterator.nextInEntry()',  "ITOR-0012", `Cannot return item from iterable store entry.`, err)
         }
     }
 
@@ -144,7 +144,6 @@ export class CxIterator<T,E = unknown> implements Iterator<T|E>{
         this.currEntries = undefined
     }
 }
-
 
 export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
     mutex                         = new Mutex();
@@ -169,7 +168,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
             }
         }
        catch(err) {
-            throw new CxError(__filename, 'CxContinuous.constructor()', 'STORE-0017', `Iterator indexKey: ${config.indexKey} or target: ${config.storeKey} failed`, err)
+            throw new CxError(__filename, 'CxContinuous.constructor()',  "ITOR-0013", `Iterator indexKey: ${config.indexKey} or target: ${config.storeKey} failed`, err)
        }
     }
 
@@ -199,7 +198,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
             }
         }
         catch(err) {
-            throw new CxError(__filename, 'CxContinuous.nextInStore()', 'STORE-0018', `Failed to run: ${this.config.storeKey!}`, err)
+            throw new CxError(__filename, 'CxContinuous.nextInStore()',  "ITOR-0014", `Failed to run: ${this.config.storeKey!}`, err)
         } 
         
     }
@@ -222,7 +221,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
                 return await this.nextInStore() as IteratorResult<T>  
         }
         catch(err) {
-            throw new CxError(__filename, 'CxContinuous.next()', 'STORE-0021', `Cannot retrieve next value.}`, err)
+            throw new CxError(__filename, 'CxContinuous.next()',  "ITOR-0015", `Cannot retrieve next value.}`, err)
         }
         finally {
              this.mutex.release(nextMutex)
@@ -290,7 +289,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
                 return undefined
         }
         catch ( err ) {
-            throw new CxError(__filename, 'CxContinuous.getEntries()', 'STORE-0019', `Cannot return iterable entries.}`, err)
+            throw new CxError(__filename, 'CxContinuous.getEntries()',  "ITOR-0016", `Cannot return iterable entries.}`, err)
         }
     }
 
@@ -300,7 +299,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
             //
             // Initial condition
             //
-            if ( _.isUndefined( this.currEntries ) ) {
+            if ( _.isUndefined( this.currEntries) ) {
                 nextInStore = await this.nextInStore()
                 if ( ! nextInStore.done ) {
                     this.currEntries = CxContinuous.getEntries( (nextInStore.value)[1] ) 
@@ -335,7 +334,7 @@ export class CxContinuous<T,E  = unknown> implements AsyncIterator<T|E>{
             return Promise.resolve( nextEntry as IteratorResult<E> ) 
         }
         catch ( err ) {
-            throw new CxError(__filename, 'CxContinuous.nextInEntry()', 'STORE-0020', `Cannot return item from iterable store entry.`, err)
+            throw new CxError(__filename, 'CxContinuous.nextInEntry()',  "ITOR-0017", `Cannot return item from iterable store entry.`, err)
         }
     }
 

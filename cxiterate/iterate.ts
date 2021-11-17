@@ -1,7 +1,8 @@
 import  Mutex  from "https://deno.land/x/await_mutex@v1.0.1/mod.ts"
 import { Action, ctrl} from "../cxctrl/mod.ts";
-import { CxContinuous, CxIterator, IteratorType } from "../cxstore/mod.ts";
+import { CxContinuous, CxIterator } from "../cxiterate/CxIterator.ts";
 import { $log, _, CxError, ee, perf } from "../cxutil/mod.ts";
+import { iteratorConfFac } from "./factories.ts";
 import { IteratorConfType } from "./interfaces.ts";
 
 const __filename = new URL("", import.meta.url).pathname;
@@ -49,7 +50,7 @@ export function getIterator<T, E>(
     throw new CxError(
       __filename,
       "getIterator()",
-      "CTRL-0010",
+      "ITOR-0001",
       `Failed to create Iterator for ${storeKey}`,
       err,
     );
@@ -98,7 +99,7 @@ export async function getContinuous<T, E>(
     throw new CxError(
       __filename,
       "getContinuous()",
-      "CTRL-0010",
+      "ITOR-0002",
       `Failed to create Continuous Iterator for ${storeKey}`,
       err,
     );
@@ -109,12 +110,12 @@ export async function getContinuous<T, E>(
 }
 
 
-/** TODO: FIX iteratorFactory - NOT WORKING
- * Get an iterator for named stored object for a specific caller - the returned iterator will be exclusive to the requesting object ( and it's swarm objects )
+/** 
+ * Get an iterator for named stored object which is assigned to a specific specific caller - the returned iterator will be exclusive to the requesting object and it's swarm objects.
  * 
  * @param itorConf              Iterator configuration
- *  caller: string      The Action storage storeName of the action requesting the iterator 
- *  target: string            The store storeName of that you request an iterator for
+ *  requestObj: string           The Action storage storeName of the action requesting the iterator 
+ *  targetObj:  string           The store storeName of that you request an iterator for
  *  indexKey: number | string   The id of the index you want an iterator for - this will be prefixed with the indexPrefix (see below) to make up the index storeName
  *  nestedIterator: boolean     If set to true, then each object fetched via the index will in turn be considered a iterable object with a next() that will return these values
  *  continuous: boolean         If set to true, then once the iterator has fetched the last entr, it will call main() on the iterable object to check for more items
@@ -123,50 +124,37 @@ export async function getContinuous<T, E>(
  * @return Continuous<T,E> | CxIterator<T,E>       An iterator for a list of a given type
  */
 
-export async function iteratorFactory<T, E>(itorConf: Partial<IteratorConfType>): Promise<CxContinuous<T, E> | CxIterator<T, E>> {
+ export async function factory<T, E>(_iterConf: Partial<IteratorConfType>): Promise<CxContinuous<T, E> | CxIterator<T, E>> {
   let mutex = new Mutex();
   const nextMutex = await mutex.acquire()
   try {
-    if (
-      (_.isUndefined(itorConf.caller) || !ctrl.store.has(itorConf.caller as string)) ||
-      (_.isUndefined(itorConf.target) || !ctrl.store.has(itorConf.target as string))
-    ) {
-      throw new Error(
-        "Caller must as a minimum supply the name of an existing requesting Action, the name of an existing iterator target Store object.",
-      );
-    }
-    if (_.isUndefined(itorConf.indexKey) || (typeof itorConf.indexKey === "number" && itorConf.indexKey === -1)) {
-      itorConf.indexKey = ctrl.actions.get(itorConf.target as string)!.getJobId();
-    }
-    if (_.isUndefined(itorConf.nestedIterator)) itorConf.nestedIterator = false;
-    if (_.isUndefined(itorConf.continuous)) itorConf.continuous = false;
-    if (_.isUndefined(itorConf.indexOffset)) itorConf.indexOffset = 0;
-    if (_.isUndefined(itorConf.indexPrefix)) itorConf.indexPrefix = "J";
-    if (itorConf.continuous) {
+    let conf = iteratorConfFac( _iterConf )
+    
+    if (conf.continuous) {
       return Promise.resolve(getContinuous<T, E>(
-        itorConf.caller!,
-        itorConf.target!,
-        itorConf.indexKey!,
-        itorConf.nestedIterator,
-        itorConf.indexOffset!,
-        itorConf.indexPrefix!,
+        conf.requestObj!,
+        conf.targetObj!,
+        conf.indexKey!,
+        conf.nestedIterator,
+        conf.indexOffset!,
+        conf.indexPrefix!,
       ) as unknown as CxContinuous<T, E>);
     } else {
       return Promise.resolve(getIterator<T, E>(
-        itorConf.caller!,
-        itorConf.target!,
-        itorConf.indexKey!,
-        itorConf.nestedIterator,
-        itorConf.indexOffset!,
-        itorConf.indexPrefix!,
+        conf.requestObj!,
+        conf.targetObj!,
+        conf.indexKey!,
+        conf.nestedIterator,
+        conf.indexOffset!,
+        conf.indexPrefix!,
       ) as CxIterator<T, E>);
     }
   } catch (err) {
     throw new CxError(
       __filename,
       "iteratorFactory()",
-      "ITOR-0011",
-      `Could not create Iterator for ${JSON.stringify(itorConf)}`,
+      "ITOR-0003",
+      `Could not create Iterator for ${JSON.stringify(_iterConf)}`,
       err,
     );
   }
@@ -189,7 +177,7 @@ export function deleteIterator(
     throw new CxError(
       __filename,
       "iteratorFactory()",
-      "ITOR-0012",
+      "ITOR-0004",
       `Could not dispose of Iterator: ${callee}.${target} `,
       err,
     );

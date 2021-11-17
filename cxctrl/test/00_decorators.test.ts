@@ -4,10 +4,7 @@ import { action } from '../decorators/mod.ts'
 import { $plog, perf } from '../../cxutil/mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 import * as _ from "https://deno.land/x/lodash@4.17.19/lodash.js"
-// import {inspect } from 'util'
-// import isUndefined from "https://deno.land/x/lodash/isUndefined.js"
-// import uniq from "https://deno.land/x/lodash/uniq.js"
-// import union from "https://deno.land/x/lodash/union.js"
+import {assert, assertEquals, assertExists } from "https://deno.land/std@0.113.0/testing/asserts.ts";
 
 type A = {gender:string, age: number} 
 type B = {gender:string, age: number}
@@ -55,12 +52,12 @@ Deno.test({
     expect(Ctrl.actions.has('Young')).toBeTruthy()
     expect(Ctrl.store.get('Young')).toBeDefined()
     let storedYoung = Ctrl.getState('Young', -1)
-    expect( storedYoung ).toEqual(objA.state)
+    assertEquals( storedYoung , objA.state, `${JSON.stringify(storedYoung)} <> ${JSON.stringify(objA.state)}`)
+    // expect( storedYoung ).toEqual(objA.state)
   },
   sanitizeResources: false,
   sanitizeOps: false
 })
-
 
  @action<A>( {
   name: 'Old',
@@ -75,7 +72,6 @@ class OB extends OA {
   }
 }
 
-console.log ('---------------------------------------')
 let objB = await new OB('hirs').register()
 
     Deno.test({
@@ -162,13 +158,12 @@ let objC = await new OC('aunty').register()
     sanitizeOps: false
   })
 
-
   {
     @action<A>( {
         name: 'Young',
         ctrl: 'main',
         state: { gender: 'male', age: 13}, 
-        init: true
+        init: false
     })
     class OA2 extends Action<A> {
         constructor( state: A = {} as A, public preferGenderName: string = 'ey' ) {
@@ -223,4 +218,6 @@ let objC = await new OC('aunty').register()
       sanitizeResources: false,
       sanitizeOps: false
       })
+
   }
+

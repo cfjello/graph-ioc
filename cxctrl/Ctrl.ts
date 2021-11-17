@@ -1,15 +1,17 @@
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { CxGraph } from "https://deno.land/x/cxgraph/mod.ts"
-import { CxStore, CxIterator, CxContinuous  }  from "../cxstore/mod.ts"
+import { CxStore }  from "../cxstore/mod.ts"
+// import { CxIterator, CxContinuous } from "../cxiterate/mod.ts"
 import { StoreEntry } from "../cxstore/interfaces.ts"
-import {$log, perf, ee, CxError, _, Mutex, debug } from "../cxutil/mod.ts"
-import { RunIntf, ActionDescriptor } from "./interfaces.ts"
+import { $log, perf, ee, CxError, _, Mutex, debug } from "../cxutil/mod.ts"
+import { RunIntf, ActionDescriptor, PromiseChainArgsType, ActionDescriptorType } from "./interfaces.ts"
 import { SwarmChildType, SwarmMasterType } from "../cxswarm/interfaces.ts"
 import { Action } from './mod.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
 import { ActionDescriptorFactory } from "./actionDescFactory.ts"
 import { config } from "../cxconfig/mod.ts"
 import { NodeConfiguration } from "../cxconfig/interfaces.ts"
+import { actionDescriptorFac, promiseChainArgsFac } from "./factories.ts";
 
 
 const __filename = new URL('', import.meta.url).pathname
@@ -55,10 +57,11 @@ export let initCounts = new Map<string,number>()
  * 
  * @param action The action instance that want to publish
  */
-export let publish = ( action: Action<any> ): Promise<number> => {  
-        let _store = action.meta.intern ? runState: store
-        let storeId = _store.set( action.meta.name!, action.state, action.currActionDesc )
-        return Promise.resolve(storeId)   
+ export let publish = ( action: Action<any> ): number => {  
+    let _store = action.meta.intern ? runState: store
+    let storeId = _store.set( action.meta.name!, action.state, action.currActionDesc )
+    action.currActionDesc.storeId = storeId
+    return storeId
 }
 
 /**
@@ -202,11 +205,12 @@ export let addAction = async ( action: Action<any>, decoCallCnt: number = 0 ): P
             throw new CxError(__filename, 'addAction()', 'CTRL-0002',`Action ${name} is already registred in the Store  - call ctrl.removeAction to remove it first`)
         }
         let actionDesc = ActionDescriptorFactory(name)
+        // TODO: change to let actionDesc = actionDescriptorFac( { rootName: name, actionName: ... })
         try {        
             perf.mark( 'addAction', actionDesc )
             await _store.register( name, action.state, actionDesc, action.meta.init ).then(( storeId ) => { 
                 actionDesc.storeId   = storeId
-                action.currActionDesc = actionDesc       
+                action.currActionDesc = actionDesc    
                 graph.addNode( name )
                 config.nodeConfig.set( name, { jobThreshold: 0, minimum: 0, maximum: 0 } as NodeConfiguration )
                 actions.set( name, action)
@@ -294,27 +298,35 @@ export let isDirty = ( action: Action<any> ): boolean => {
 /**
  * Build the map of all dependencies 
  * 
- * @param rootName Name of the action
+ * @param actionName Name of the action
  * @return A Map of Action Descriptors
  */
-export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdSeq().next().value, runRoot: boolean = false  ): Map<string, ActionDescriptor> => {
+export let getActionsToRun  = ( 
+    arg: PromiseChainArgsType
+    /*
+    actionName: string, 
+    jobId: number | void =  jobIdSeq().next().value, 
+    runRoot: boolean = false  
+    */
+): Map<string, ActionDescriptorType> => 
+{
     p.mark('getActionsToRun') // action: rootName
-    let actionsToRun = new Map<string, ActionDescriptor>()
+    let actionsToRun = new Map<string, ActionDescriptorType>()
     let inversHierarchy  = new Map<string, string>()
 
     let prevNodeIdent: string[] = []
-    if ( graph.hasNode( rootName ) ) { 
+    if ( graph.hasNode( arg.actionName ) ) { 
         //     
         // iterate through the reverse sorted graph, meaning that you read the leafs first
         //  
-        let hierarchy =  graph.hierarchyOf( rootName, true ) 
+        let hierarchy =  graph.hierarchyOf( arg.actionName, true ) 
         let maxThreshold = 2 // The minimum number it can be
         cbug('HIE: %O', hierarchy)
 
         hierarchy.forEach( (ident: string, name: string )  => {
             let action   = actions.get(name)!
-            let _store    = action.meta.intern ? runState: store
-            let storeId  = _store.has(name) ? _store.getStoreId( name ) : -1 
+            let _store   = action.meta.intern ? runState                  : store
+            let storeId  = _store.has(name)   ? _store.getStoreId( name ) : -1 
             
             let nodeConf = config.resolveActionConfig(name, maxThreshold)
             //
@@ -336,25 +348,26 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
             //
             // Set the action Descriptor
             //
-            let ad = new ActionDescriptor()
-            ad.rootName     = rootName
-            ad.storeName    = name
-            ad.actionName   = name
-            ad.ident        = ident
-            ad.storeId      = storeId  // this is the current StoreId before running the action
-            ad.children     = children
-            ad.jobId        = jobId as number
-            ad.taskId       = taskIdSeq().next().value as number
-            ad.forceRunRoot = runRoot
-            ad.nodeConfig   = _.clone( nodeConf )  
+            let ad = actionDescriptorFac({
+                rootName     : arg.actionName,
+                storeName    : name,
+                actionName   : name,
+                ident        : ident,
+                storeId      : storeId,  // this is the current StoreId before running the action
+                children     : children,
+                jobId        : arg.jobId as number,
+                taskId       : taskIdSeq().next().value as number,
+                forceRunRoot : arg.runRoot,
+                nodeConfig   : _.clone( nodeConf )  
+            })
             //
             // Handle Swarmed actions
             //
             let swarm = actions.get(ad.actionName)!.swarm as SwarmMasterType
-            // TODO: DEL if ( actions.get(ad.actionName)?.swarm.init ) {
             if ( swarm.init ) {
-                // let children = ( actions!.get(ad.actionName)!.swarm! as SwarmMasterType).children
-                (swarm.children ?? []).forEach( ( swarmName: string )  => {
+                let children =  arg.children.length > 0 ? arg.children : swarm.children;
+                
+                (children ?? []).forEach( ( swarmName: string )  => {
                     let swarmAd        = _.clone(ad)
                     swarmAd.actionName = swarmName
                     swarmAd.nodeConfig = undefined
@@ -380,14 +393,23 @@ export let getActionsToRun  = ( rootName: string, jobId: number | void =  jobIdS
  * @param runRoot If true the root object of the is executed whether it is dirty or not
  * @returns ActionDescriptorIntf An Action descriptor interface containng a run() funtion that emits a run event for this action chain
  */
-export let getPromiseChain = ( actionName: string, runAll: boolean = false, runRoot: boolean = false ): RunIntf => {
-    let jobId    = jobIdSeq().next().value as number
-    let action   = actions.get(actionName)!
+export let getPromiseChain = ( 
+    arg: PromiseChainArgsType
+    /*
+    actionName: string, 
+    runAll: boolean = false, 
+    runRoot: boolean = false,
+    jobId    = jobIdSeq().next().value as number
+    */
+): RunIntf => 
+{
+    let action   = actions.get(arg.actionName)!
     let _store    = action.meta.intern ? runState: store
-    let jobKey: string =  _store.addIndexKey( jobId, 'J' )
+    let jobKey: string =  _store.addIndexKey( arg.jobId, 'J' )
     
-    p.mark( `promiseChain_${jobId}` )
-    let actionsToRun = getActionsToRun(actionName, jobId, runRoot)
+    p.mark( `promiseChain_${arg.jobId}` )
+    // let actionsToRun = getActionsToRun(pc.actionName, pc.jobId, pc.runRoot)
+    let actionsToRun = getActionsToRun(arg)
     //
     // baseKey is the object initiating the execution chain
     //
@@ -396,7 +418,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
     const baseKey = [... actionsToRun.keys()].reverse()[0] 
     
     // Unique job id: eventName
-    const eventName: string =  `${baseKey}_Event_${jobId}`
+    const eventName: string =  `${baseKey}_Event_${arg.jobId}`
     //
     // Create an initial promise that listens for a triggering event, 
     // allowing us to control when the whole transaction chain of promises are activated
@@ -407,7 +429,6 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
     // 
     // Build the promise chain of actions to run
     //
-    // actionsToRun.forEach( (ad, key) => {  
     for ( let [key, ad] of actionsToRun ) {
         //
         // Handle child nodes that the target node depens on
@@ -427,7 +448,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
             ad.children.forEach( (childKey: string) => {
                 //
                 // Since the actionToRun list is reverse sorted
-                // the promise is assumed to be set at this point
+                // the promise is set at this point
                 //
                 try {
                     dependsOn.set(childKey, actionsToRun.get(childKey)!.promise!)
@@ -445,8 +466,8 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
             let swarmArr: any[] = []
             if ( actions?.get(key)?.swarm ) {
                 let children = ( actions!.get(key)!.swarm! as SwarmMasterType).children
-                children.forEach( swarmName => {
-                    let beginEvent = `${swarmName}_${jobId}_run`
+                children.forEach( ( swarmName: string ) => {
+                    let beginEvent = `${swarmName}_${arg.jobId}_run`
                     swarmArr.push(new Promise( (resolve, reject) => { ee.on(beginEvent, () => {
                         cbug('%s GOT: %s', key, beginEvent)
                         resolve(beginEvent) 
@@ -462,7 +483,6 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
                 }
             }
         }
-
         //
         // Create Promises for the execution tree
         //
@@ -488,7 +508,7 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
                             let _store    = action.meta.intern ? runState: store
                             actionObj.currActionDesc = ad
                             let firstRun = ( actionObj.meta.callCount === 0 && actionObj.meta.init === false ) 
-                            let dirty = ( ( ad.forceRunRoot && ad.storeName === ad.rootName ) || isDirty( actionObj ) ||  runAll || firstRun )
+                            let dirty = ( ( ad.forceRunRoot && ad.storeName === ad.rootName ) || isDirty( actionObj ) ||  arg.runAll || firstRun )
                             
                             cbug  ( 'DIRTY[%s]: %s', key, dirty)
 
@@ -537,10 +557,10 @@ export let getPromiseChain = ( actionName: string, runAll: boolean = false, runR
             reason => { throw(reason) } ) 
         }         
     }
-    p.mark( `promiseChain_${jobId}` ) 
+    p.mark( `promiseChain_${arg.jobId}` ) 
     return {
         getEventName():    string  { return eventName },
-        getJobId():        number  { return jobId },
+        getJobId():        number  { return arg.jobId },
         getActionsToRun(): Map<string, ActionDescriptor>  { return actionsToRun },
         async run():       Promise<void> { 
                                 //
@@ -580,7 +600,12 @@ export let runTarget = ( actionName: string, runAll: boolean = false, runRoot: b
     let _store    = action.meta.intern ? runState: store
     let jobKey: string =  _store.addIndexKey( jobId, 'J' )
 
-    let actionsToRun = getActionsToRun(actionName, jobId) 
+    let actionsToRun = getActionsToRun( promiseChainArgsFac( {
+        actionName: actionName, 
+        jobId: jobId
+        })
+    ) 
+
     p.mark(`runTarget_${jobId}`) // , actionsToRun.get(swarmName)
 
     let resAll = true

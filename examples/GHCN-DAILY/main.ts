@@ -1,4 +1,4 @@
-import { Action, action, swarm } from "../../cxctrl/mod.ts"
+import { swarm } from "../../cxswarm/mod.ts"
 import { CxError, _  } from "../../cxutil/mod.ts"
 import { PgTables  }  from "./PgTables.ts"
 import { FileList }   from "./FileList.ts"
@@ -34,9 +34,15 @@ try {
     let pgLoadData = await new PgLoadData().register()
     pgLoadData.setDependencies( 'LoadList' )
 
-
-    swarm.swarmConfig('PgLoadData', 2, 580 )
-    await swarm.addSwarm('PgLoadData', PgLoadData )
+    swarm.setSwarmConfig('PgLoadData', {
+        maximum: 700,
+        minimum: 50,
+        skipFirst: 2,
+        approach: 'binary',
+        timerMS: 600000
+    } )
+    await swarm.addSwarm('PgLoadData')
+    await swarm.addOptimizer(pgLoadData)
 
     await pgLoadData.run()
 

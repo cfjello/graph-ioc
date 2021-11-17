@@ -1,26 +1,13 @@
-
-import { StateKeys } from "../cxctrl/interfaces.ts"
-
-export type StateMetaData = {
-    storeId:        number
-    prevStoreId?:   number
-    prevJobId?:     number
-    prevTaskId?:    number
-}
-
-export type StoreEntry<T> = {
-    data: T
-    meta: StateKeys
-}
-/* TODO: TBD
 export type IteratorType = {
     storeKey:       string,
-    indexKey:       number | string,
+    indexKey:       number | string, // this will most often be the jobId
     nestedIterator: boolean,
+    continuous:     boolean,
     indexOffset:    number,
     indexPrefix:    string
 }
 
+export type IteratorConfType = { requestObj: string, targetObj: string }  & IteratorType
 
 export interface AsyncIterator<T> {
     next(value?: any):      Promise<IteratorResult<T>>;
@@ -31,4 +18,3 @@ export interface AsyncIterator<T> {
 export interface IterateIndexMap {
     [Symbol.iterator](): IterableIterator<number>;
 }
-*/

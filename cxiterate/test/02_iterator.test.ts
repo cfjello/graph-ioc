@@ -1,12 +1,10 @@
 import { ctrl, Action, action } from "../../cxctrl/mod.ts"
 import { CxIterator, CxContinuous } from "../mod.ts"
-import { StoreEntry } from "../interfaces.ts"
+import { StoreEntry } from "../../cxstore/interfaces.ts"
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import FTPClient from "https://deno.land/x/ftpc@v1.1.0/mod.ts"
 import { CxError, _  } from "../../cxutil/mod.ts"
 import { expect } from 'https://deno.land/x/expect/mod.ts'
-
-
 
 const __filename = new URL('', import.meta.url).pathname;
 
@@ -304,6 +302,7 @@ export class NumList extends Action<number[]> {
         indexKey: numList.currActionDesc.jobId,
         nestedIterator: true
     })
+    
     Deno.test({
         name: '02 - CxContinuous: Iterator should read a CONTINUOUS store object using next()', 
         fn: async () => {
@@ -382,6 +381,7 @@ export class NumList extends Action<number[]> {
     })
 }
 
+/*
 {
     let numList4 = await new NumList().register('NumList4')
 
@@ -398,12 +398,23 @@ export class NumList extends Action<number[]> {
             let done = false
             let count = 1
             while ( true ) {
-                let obj = await itor7.next(done) as IteratorResult<number> 
+                let obj = await itor7.next(numList4) as IteratorResult<number> 
                 if ( ! done ) {
                     let value: number  = obj.value[1]
                     expect(value).toEqual(count++)
                 }
-                done = done = obj.done as boolean || count > 10 ? true : false
+                if ( obj.done as boolean || count > 10 ) {
+                    done =  true
+                    if ( ! numList4.swarm ) {
+                        numList4.swarm  = {}
+                        numList4.canRun = false
+                    }
+                    else {
+                        numList4.canRun = false
+                    }
+                   
+                }
+                
                 if ( done ) break
             }
             expect(count).toEqual(11)
@@ -412,3 +423,4 @@ export class NumList extends Action<number[]> {
         sanitizeOps: false
     })
 }
+*/

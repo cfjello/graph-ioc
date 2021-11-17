@@ -1,11 +1,11 @@
 import { sprintf } from "https://deno.land/std/fmt/printf.ts"
-import { ConfigMetaType, ActionConfigType } from "../cxctrl/interfaces.ts"
+import { ConfigMetaType, ActionConfigType, ActionDescriptor } from "../cxctrl/interfaces.ts"
 import { SwarmConfiguration, SwarmChildType, SwarmMasterType, SwarmOptimizerType, Approach, Advice, OptimizerCallback  } from "./interfaces.ts"
 import { ctrl, Action }  from '../cxctrl/mod.ts'
 import { config } from "../cxconfig/mod.ts"
 // import { NodeConfiguration } from "../cxconfig/interfaces.ts"
 import { SwarmOptimizer} from "./SwarmOptimizer.ts"
-import { bootstrap, Constructor } from "../cxctrl/bootstrap.ts"
+import { bootstrap, bootstrapFromAction, Constructor } from "../cxctrl/bootstrap.ts"
 import {$log, perf, ee, CxError, _ , Mutex, debug } from "../cxutil/mod.ts"
 
 const __filename = new URL('', import.meta.url).pathname
@@ -186,7 +186,7 @@ function evalSwarmCount(
 {
     try {
         if ( ! ctrl.actions.has(actionName) ) 
-            throw new CxError(__filename, 'evalSwarmCount()', 'SWARM-0003', `No action instance named ${actionName} is registered.`)
+            throw Error(`No action instance named ${actionName} is registered.`)
 
         let rootObj = ctrl.actions.get(actionName)!
         let conf  = config.nodeConfig.get(actionName)!
@@ -199,15 +199,14 @@ function evalSwarmCount(
             if ( addCount === 0 )
                 addCount = conf.minimum  // default to the configuration
             if ( addCount > conf.maximum ) 
-                throw new CxError( __filename, 'addSwarm()', 'SWARM-0001', `SwarmSize: ${addCount}, is greater than configuration allows: ${conf.maximum}.`)
+                throw Error(`SwarmSize: ${addCount}, is greater than configuration allows: ${conf.maximum}.`)
         }
         else {
             //
             // Update to the instance count - Check current + update against the configuration defaults
             // 
-            if ( ! rootObj.isSwarmMaster() ) {
-                throw Error(`${actionName} is not a swarmMaster instance`)
-            }
+            if ( ! rootObj.isSwarmMaster() ) throw Error(`${actionName} is not a swarmMaster instance`)
+
             let currChildCount  = (rootObj.swarm as SwarmMasterType)?.children?.length ?? 0 
             let newSwarmCount   =  currChildCount === 0 && addCount < conf.minimum ? conf.minimum : addCount
             addCount = currChildCount + newSwarmCount
@@ -261,9 +260,10 @@ export async function addSwarm<T>(
             // Create and add new swarm object
             //
             let name = sprintf("%s_swarm_%04d", actionName, i)
-            // sbug('Trying to add Action: %s', name)
+            sbug('Add Action: %s', name)
             ctrl.graph.addNode( name )
             let actionConfig: ActionConfigType<T> = { name: rootName, swarmName: name, init: false, state: rootObj.state } 
+            
             ctrl.actions.set( name, await bootstrap( actionClass as unknown as Constructor<T> , actionConfig ) as unknown as Action<T> )
             //
             // Configure the new and the root objects
@@ -272,8 +272,65 @@ export async function addSwarm<T>(
             (rootObj.swarm as SwarmMasterType).children.push( name ) 
         }
         sbug('Length of %s.swarm.children: %d', rootObj.meta.name , (ctrl.actions.get(actionName)!.swarm as SwarmMasterType).children.length)
+    }
+    catch(err) {
+        throw new CxError( __filename, 'addSwarm()', 'SWARM-0002', `Failed to add the swarm.`, err )
+    }
+}
 
 
+export async function addToSwarm<T>( 
+    actionName: string, 
+    addCount: number = 0,
+    startUp: boolean = false
+    ) {
+    try {    
+        let rootObj     = ctrl.actions.get(actionName)!
+        // let actionClass = Object.getPrototypeOf(rootObj) === null ? rootObj : Object.getPrototypeOf(rootObj).constructor
+        let rootName    = rootObj.meta.name!  
+
+        if ( ! rootObj.isSwarmMaster )  throw Error(`${rootName} is not a SwarmMaster`)
+        
+        let newCount = evalSwarmCount( actionName, addCount ) 
+        let rootDeps: string[]  = ctrl.graph.getOutgoingEdges( rootName )  
+        let childCount = (rootObj.swarm as SwarmMasterType).children.length 
+
+        //
+        // Bootstrap new action object instances from the root object and add them to ctrl.actions
+        // 
+        sbug('addToSwarm to %s new: %d', actionName, newCount)
+        for( let i = childCount; i < newCount ; i++ ) {
+            //
+            // Create and add new swarm object
+            //
+            let name = sprintf("%s_swarm_%04d", actionName, i)
+            sbug('Add Action: %s', name)
+            ctrl.graph.addNode( name )
+
+            let actionConfig: ActionConfigType<T> = { name: rootName, swarmName: name, init: false, state: rootObj.state } 
+            ctrl.actions.set( name, await bootstrapFromAction( rootObj , actionConfig ) as unknown as Action<T> )
+            
+            let childObj = ctrl.actions.get( name )! 
+            if ( (rootObj.swarm as SwarmMasterType).active ) { 
+                childObj.currActionDesc = rootObj.currActionDesc
+            }
+            //
+            // Configure the new object
+            //
+            ctrl.actions.get(name)!.setDependencies( ...rootDeps );
+            (rootObj.swarm as SwarmMasterType).children.push( name ) 
+            let ad = _.clone(rootObj.currActionDesc) as ActionDescriptor
+            ad.children = []
+            ad.actionName = name 
+            ad.forceRunRoot = true
+            ad.isDirty = true
+            ad.ran = false
+            ad.success = false
+            // And start the async execution of it 
+            ctrl.actions.get(name)!.__exec__ctrl__function__(ad)
+        }
+        
+        sbug('Length of %s.swarm.children: %d', rootObj.meta.name , (ctrl.actions.get(actionName)!.swarm as SwarmMasterType).children.length)
     }
     catch(err) {
         throw new CxError( __filename, 'addSwarm()', 'SWARM-0002', `Failed to add the swarm.`, err )
@@ -458,7 +515,7 @@ export async function updateSwarm( actionName: string, newCount: number ) {
         if ( newCount > children.length ) {
             // Add Swarm objects
             sbug('In updateSwarm() with %s new total count: %d and current count: %d => add: %d', actionName, newCount, children.length, newCount - children.length)
-            await addSwarm( actionName,  newCount - children.length )
+            await addToSwarm( actionName,  newCount - children.length, true )
             sbug('UpdateSwarm AFTER add: %d', (rootObj.swarm as SwarmMasterType).children.length )
         }
         else {

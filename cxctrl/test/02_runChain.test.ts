@@ -2,16 +2,7 @@
 import { ctrl, Action, action }  from '../mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 import { RunIntf, ActionDescriptor } from "../interfaces.ts"
-
-/*
-import * as  Ctrl from '../src/Ctrl'
-import { Action } from '../src/Action'
-
-*/ 
-// import * as _ from 'lodash'
-// import { action } from '../src/decorators'
-// import { collapseTextChangeRangesAcrossMultipleVersions } from "typescript"
-
+import { promiseChainArgsFac } from "file:///C:/Work/graph-ioc/cxctrl/factories.ts";
 
 type P = {name:string, age: number} 
 type Q = {name:string, age: number}
@@ -83,7 +74,7 @@ class ObjR  extends Action<R> {
     }
   }
 
-  @action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
+@action( { state: {name: 'R', age:38 }, ctrl: 'ctrl', init: true } ) 
 class ObjR1  extends Action<R> { 
   ctrl():boolean {
     let stateP: Readonly<P> = ctrl.getStateData("ObjP1");
@@ -173,9 +164,9 @@ class ObjR3  extends Action<R> {
       name: '02 - It should RUN the Dependency Promises in order',  
       fn : async () => {       
           let nameR3 = ObjR3.name
-          let actionsToRun = ctrl.getActionsToRun('ObjR3')
+          let actionsToRun = ctrl.getActionsToRun( promiseChainArgsFac({ actionName: 'ObjR3'}) )
           expect(actionsToRun.size).toEqual(4)
-          let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', true)
+          let promiseChain: RunIntf = ctrl.getPromiseChain( promiseChainArgsFac({ actionName: 'ObjR3', runAll: true}) )
           expect(ObjR3.name).toEqual(nameR3)
           await promiseChain.run()
           expect(instR3.state.name).toEqual('R3:[P3:[],Q3:[S3:[]]]') 
@@ -190,7 +181,7 @@ class ObjR3  extends Action<R> {
       fn:  async () => { 
           let nameR3 = ObjR3.name
           // let actionsToRun = ctrl.getActionsToRun('ObjR3')
-          let promiseChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
+          let promiseChain: RunIntf = ctrl.getPromiseChain( promiseChainArgsFac({ actionName: 'ObjR3', runAll: false}) )
           expect(ObjR3.name).toEqual(nameR3)
           await promiseChain.run()
           
@@ -227,7 +218,7 @@ class ObjR3  extends Action<R> {
         instS3.state.age = 199
         instS3.publish()
         await ctrl.runTarget('ObjQ3') // This will now be dirty
-        let runChain: RunIntf = ctrl.getPromiseChain('ObjR3', false)
+        let runChain: RunIntf = ctrl.getPromiseChain( promiseChainArgsFac({ actionName: 'ObjR3', runAll: false}) )
         await runChain.run()
         let tasks: Map<string, ActionDescriptor>   = runChain.getActionsToRun()!
 

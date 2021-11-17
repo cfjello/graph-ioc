@@ -1,6 +1,7 @@
 import { ctrl, Action, action }  from '../mod.ts'
 import { expect }  from 'https://deno.land/x/expect/mod.ts'
 import { RunIntf, ActionDescriptor } from "../interfaces.ts"
+import { promiseChainArgsFac } from "file:///C:/Work/graph-ioc/cxctrl/factories.ts";
 
 type P = {name:string, age: number} 
 type Q = {name:string, age: number}
@@ -140,7 +141,7 @@ class ObjR1  extends Action<R> {
   
   instS1.main() // This is now dirty
  
-  await ctrl.getPromiseChain('ObjP1').run()
+  await ctrl.getPromiseChain( promiseChainArgsFac({ actionName: 'ObjP1'}) ).run()
   let collection1 = ctrl.store.getCollection( instP1.currActionDesc.jobId, undefined, false )
 
   Deno.test( {

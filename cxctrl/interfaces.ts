@@ -1,5 +1,25 @@
 import { NodeConfiguration } from "../cxconfig/interfaces.ts"
 
+
+export type ActionDescriptorType = {
+    rootName:     string,  
+    storeName:    string,
+    actionName:   string,
+    ident:        string,
+    jobId :       number,  
+    taskId:       number,
+    forceRunRoot: boolean,
+    storeId:      number,
+    children:     string[],
+    isDirty:      boolean,
+    eventName:    string,                   
+    ran:          boolean,
+    success:      boolean,
+    nodeConfig?:  NodeConfiguration,
+    promise: Promise<unknown> | undefined 
+
+}
+
 export class ActionDescriptor {
     constructor ( 
         public rootName:    string               = "",  
@@ -15,7 +35,6 @@ export class ActionDescriptor {
         public eventName:   string               = "",                   
         public ran:         boolean              = false,
         public success:     boolean              = false,
-        // public type:       string               = "desc",
         public nodeConfig?:   NodeConfiguration,
         public promise: Promise<unknown> | undefined = undefined  
       ) {      
@@ -56,12 +75,10 @@ export type MetaType = ConfigMetaType & {
     funcName?:      string,  
 }
 
-export type IteratorConfType = {
-    caller: string, 
-    target: string, 
-    nestedIterator: boolean, 
-    continuous: boolean,
-    indexKey: number | string , 
-    indexOffset: number, 
-    indexPrefix: string
+export type PromiseChainArgsType = {
+    actionName: string, 
+    runAll:     boolean, 
+    runRoot:    boolean,
+    jobId:      number,
+    children:   string[]
 }

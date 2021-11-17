@@ -1,7 +1,8 @@
-import {  Action }  from '../cxctrl/mod.ts'
+import {  Action, ctrl }  from '../cxctrl/mod.ts'
 import { swarm }  from '../cxswarm/mod.ts'
 import { ActionConfigType, MetaType } from '../cxctrl/interfaces.ts'
 import { CxError, _, ee } from '../cxutil/mod.ts'
+import { SwarmMasterType } from "../cxswarm/interfaces.ts";
 
 const __filename = new URL('', import.meta.url).pathname
 
@@ -30,7 +31,13 @@ export async function bootstrap<T,C>( Type: Constructor<T>, conf: ActionConfigTy
         // New object is swarm child?
         // 
         let isSwarmObj =  ! _.isUndefined(conf.swarmName!) 
-        if ( isSwarmObj ) swarm.setSwarmCtrl(instance, 'child', conf)
+        if ( isSwarmObj ) { 
+            if ( (ctrl.actions.get(name)?.swarm as SwarmMasterType).active ?? false ) {
+                // TODO set jobId
+                // set callbacks
+            }
+            swarm.setSwarmCtrl(instance, 'child', conf)
+        }
         //
         // Clone the object state if needed
         //
