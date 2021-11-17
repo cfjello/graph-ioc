@@ -15,11 +15,12 @@ Deno.test( {
             throw Error('Unprovoked Error') 
         }
         catch( err ) {
+            // console.log(`ERROR IS: ${err}`)
             let cxErr = new CxError(__filename , 'fn()', 'TEST-0001', 'fn() failed', err)
             expect(cxErr.message).toEqual('fn() failed')
-            expect(cxErr.errChain[0].message).toEqual('Unprovoked Error')
+            expect(cxErr.errChain[0].message).toEqual('Error: Unprovoked Error')
             // if ( ! isUndefined( cxErr.stack) ) console.log(cxErr.stack)
-            expect(cxErr.errChain[0].stack!).toMatch(/at Object.fn/m)
+            expect(cxErr.errChain[0].stack!).toMatch(/at fn/m)
         }
     },
     sanitizeResources: false,
@@ -47,12 +48,12 @@ Deno.test( {
             
             expect(outerErr.code).toEqual('TEST-0003')
             expect(outerErr.message).toEqual('fn() third')
-            expect(outerErr.stack!).toMatch(/at Object.fn/m)
+            expect(outerErr.stack!).toMatch(/at fn/m)
        
             let messages = ['Base JS Error' , 'fn() first', 'fn() second']
             let length = outerErr.errChain.length
             for (let i = 0 ; i < 3; i++ ) {
-                expect(outerErr.errChain[i].message).toEqual( messages[i] )
+                expect(outerErr.errChain[i].message).toMatch( messages[i] )
             }
             outerErr.logError()
         }

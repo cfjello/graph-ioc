@@ -44,10 +44,15 @@ export class CxError implements CustomErrorIntf  {
             //
             let origCxErr: CxError
             if ( ! _.isUndefined( origErr ) ) {
-                if ( (origErr as object).constructor.name === 'Error' ) {
-                    // console.log(`origErr: ${JSON.stringify(origErr)}`)
-                    
-                   origCxErr = new CxError( 'NA', 'NA', 'NA', JSON.stringify(origErr), undefined, _.isUndefined( origErr!.stack ) ? '' : origErr!.stack)
+                if ( (origErr as object).constructor.name === 'Error' ) {  
+                    origCxErr = new CxError( 
+                                    'NA', 
+                                    'NA', 
+                                    'NA', 
+                                     origErr!.toString() as string, 
+                                    undefined, 
+                                    _.isUndefined( origErr!.stack ) ? '' : origErr!.stack
+                                )
                 }
                 else {
                     origCxErr = origErr as CxError
