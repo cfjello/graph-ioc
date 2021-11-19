@@ -1,6 +1,13 @@
 import { sprintf } from "https://deno.land/std/fmt/printf.ts"
 import { ConfigMetaType, ActionConfigType, ActionDescriptor } from "../cxctrl/interfaces.ts"
-import { SwarmConfiguration, SwarmChildType, SwarmMasterType, SwarmOptimizerType, Approach, Advice, OptimizerCallback  } from "./interfaces.ts"
+import { SwarmConfiguration, 
+         SwarmChildType, 
+         SwarmMasterType, 
+         SwarmOptimizerType, 
+         Approach, 
+         Advice, 
+         OptimizerCallback  
+        } from "./interfaces.ts"
 import { ctrl, Action }  from '../cxctrl/mod.ts'
 import { config } from "../cxconfig/mod.ts"
 // import { NodeConfiguration } from "../cxconfig/interfaces.ts"
@@ -278,7 +285,6 @@ export async function addSwarm<T>(
     }
 }
 
-
 export async function addToSwarm<T>( 
     actionName: string, 
     addCount: number = 0,
@@ -319,15 +325,19 @@ export async function addToSwarm<T>(
             //
             ctrl.actions.get(name)!.setDependencies( ...rootDeps );
             (rootObj.swarm as SwarmMasterType).children.push( name ) 
-            let ad = _.clone(rootObj.currActionDesc) as ActionDescriptor
-            ad.children = []
-            ad.actionName = name 
+            let ad          = _.clone(rootObj.currActionDesc) as ActionDescriptor
+            ad.children     = []
+            ad.actionName   = name 
             ad.forceRunRoot = true
-            ad.isDirty = true
-            ad.ran = false
-            ad.success = false
-            // And start the async execution of it 
-            ctrl.actions.get(name)!.__exec__ctrl__function__(ad)
+            ad.isDirty      = true
+            ad.ran          = false
+            ad.success      = false
+            //
+            // Start the async execution of it if the swarm master object is running
+            // else wait for the swarm master main() to run 
+            if ( ( rootObj.swarm as SwarmMasterType ).active ) { 
+                ctrl.actions.get(name)!.__exec__ctrl__function__(ad)
+            }
         }
         
         sbug('Length of %s.swarm.children: %d', rootObj.meta.name , (ctrl.actions.get(actionName)!.swarm as SwarmMasterType).children.length)

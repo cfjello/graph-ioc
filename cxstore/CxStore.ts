@@ -34,7 +34,7 @@ export class CxStore {
         let storeId: number = -1
         try {
             if ( init ) 
-                storeId = this.set( key, objRef, ad ) 
+                storeId = this.set<T>( key, objRef, ad ) 
             else 
                 storeId = this.initStoreKey<T>(key).storeId
         }

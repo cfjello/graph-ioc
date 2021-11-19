@@ -1,8 +1,8 @@
-import { ctrl, action, iterate, bootstrap } from "../../cxctrl/mod.ts"
+import { ctrl, action,  bootstrap } from "../../cxctrl/mod.ts"
 import { Action } from "../../cxctrl/Action.ts"
 import { swarm } from "../mod.ts"
 import { SwarmChildType } from "../interfaces.ts"
-import { CxIterator } from "../../cxstore/mod.ts"
+import { iterate, CxIterator } from "../../cxiterate/mod.ts"
 import { CxError, _ , ee } from "../../cxutil/mod.ts"
 import { delay } from 'https://deno.land/std/async/delay.ts'
 import { expect } from 'https://deno.land/x/expect/mod.ts'
@@ -48,7 +48,14 @@ export class FileAppend2 extends Action<string[]> {
         try {
             let itor: CxIterator<string[], string> 
             let _swarm = this.swarm as SwarmChildType
-            itor = iterate.getIterator<string[],string>(this.meta.name!, 'FileList', this.getJobId(), true ) as CxIterator<string[],string> 
+
+            itor = iterate.getIterator<string[],string>(
+                this.meta.name!, 
+                'FileList', 
+                ctrl.actions.get('FileList')!.getJobId(), 
+                true 
+            ) as CxIterator<string[],string> 
+
             let obj: IteratorResult<any>
             let modus = 100
             let accum = 0
@@ -64,7 +71,7 @@ export class FileAppend2 extends Action<string[]> {
                     // await delay(200)
                     this.publish()
                 }
-                if ( ++idx >= 20000 ) break;
+                if ( ++idx >= 10000 ) break;
             } 
         }
         catch ( err ) {
@@ -81,7 +88,6 @@ export class FileAppend2 extends Action<string[]> {
 }
 
 let fileAppend2 = await new FileAppend2().register()
-
 await fileAppend2.setDependencies('FileList')
 
 swarm.setSwarmConfig('FileAppend2', {
@@ -130,30 +136,6 @@ Deno.test( {
     sanitizeOps: false
 })
 
-/*
-Deno.test( {
-    name: '11.2 - Optimizer can store rewards and give advice', 
-    fn: async () => {
-        try {
-            let optimizer  = fileAppend2.swarm.optimizers.get('FileAppend2_optimize_swarm')
-            expect( optimizer.reward ).toBeDefined()
-            optimizer.reward(55)
-            await delay(1200)
-            optimizer.reward(60)
-            expect( optimizer.state.reward).toEqual(60)
-            await delay(1200)
-            let data = ctrl.getStateData('FileAppend2_optimize_swarm')  as Advice
-            expect( data.advice).toBeDefined()
-            expect( data.advice).toEqual(26)
-        }
-        catch (err ) { console.log(err) }
-    },
-    sanitizeResources: false,
-    sanitizeOps: false
-})
-*/
-
-
 Deno.test( {
     name: '11.4 - SwarmOptimizer swarm callback takes advice and swarm adds new swarm objects', 
     fn: async () => {
@@ -162,7 +144,7 @@ Deno.test( {
         fileAppend3.setDependencies('FileList')
 
         swarm.setSwarmConfig('FileAppend3', {
-            maximum: 50,
+            maximum: 6,
             minimum: 2,
             skipFirst: 0,
             approach: 'binary',
@@ -172,6 +154,7 @@ Deno.test( {
 
         await swarm.addSwarm('FileAppend3' )
         await swarm.addOptimizer( fileAppend3 as unknown as  Action<any>)
+        // await fileAppend3.run()
 
         expect((fileAppend3.swarm as SwarmOptimizerType).optimizers.has('FileAppend3_optimize_swarm') )
         expect( ctrl.runState.has('FileAppend3_optimize_swarm') ).toBeDefined()
@@ -213,10 +196,9 @@ Deno.test( {
         expect(ctrl.actions.get('FileAppend4') ).toBeDefined()
         await swarm.addSwarm('FileAppend4' )
         await swarm.addOptimizer( fileAppend4 as unknown as  Action<any>)
-        
+        // await fileAppend4.run()
+
         let optimizer  = (fileAppend4.swarm  as SwarmOptimizerType).optimizers.get('FileAppend4_optimize_swarm')!
-        
-        
         optimizer.reward(5000)
         await delay(1200)
         expect( ctrl.runState.has('FileAppend4_optimize_swarm') ).toBeDefined()
@@ -238,3 +220,4 @@ Deno.test( {
     sanitizeOps: false
 })
 
+// TODO test a running application - for now done in examples/GHCN....

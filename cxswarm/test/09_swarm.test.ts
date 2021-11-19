@@ -1,7 +1,7 @@
-import { ctrl, Action, action, iterate} from "../../cxctrl/mod.ts"
+import { ctrl, Action, action} from "../../cxctrl/mod.ts"
 import { swarm } from "../mod.ts"
 import { SwarmChildType } from "../interfaces.ts"
-import { CxIterator } from "../../cxstore/mod.ts"
+import { CxIterator, iterate } from "../../cxiterate/mod.ts"
 import { CxError, _ , ee } from "../../cxutil/mod.ts"
 // import { delay } from 'https://deno.land/x/delay/mod.ts'
 import { expect } from 'https://deno.land/x/expect/mod.ts'

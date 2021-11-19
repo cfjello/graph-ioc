@@ -1,4 +1,4 @@
-import { ctrl, action, iterate, bootstrap } from "../../cxctrl/mod.ts"
+import { ctrl, action,bootstrap } from "../../cxctrl/mod.ts"
 // import { Action } from "../../cxctrl/Action.ts"
 // import { swarm } from "../mod.ts"
 import { expect } from 'https://deno.land/x/expect@v0.2.9/mod.ts'
