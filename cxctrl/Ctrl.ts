@@ -10,16 +10,22 @@ import { Action } from './mod.ts'
 import { jobIdSeq, taskIdSeq } from "./generators.ts"
 import { ActionDescriptorFactory } from "./actionDescFactory.ts"
 import { config } from "../cxconfig/mod.ts"
-import { NodeConfiguration } from "../cxconfig/interfaces.ts"
+import { startServer } from "../cxrest/server.ts"
+import { MonitorDefaults, NodeConfiguration } from "../cxconfig/interfaces.ts"
 import { actionDescriptorFac, promiseChainArgsFac } from "./factories.ts";
 
 
 const __filename = new URL('', import.meta.url).pathname
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 
+//
 // Main User Data Store
+//
 export let store = new CxStore()
+
+//
 // Ctrl Run state
+//
 export let runState  = new CxStore('intern')
 
 //
@@ -38,10 +44,30 @@ const cbug = debug('ctrl')
 export let p = perf
 
 //
+// Monitor data access - TODO: make it secure
+// 
+let serverConf = config.globalConfig.get('MonitorDefaults') as MonitorDefaults
+
+if ( serverConf.runServer ) startServer(serverConf.port)
+
+//
 // Internal ctrl meta data
 //
 export let graph: CxGraph  = new CxGraph()
 export let actions         = new Map<string, Action<any>>() 
+
+/** Provides Type mapping when fetching an action object */
+export function getAction<T>(actionName: string) {
+    try {
+        if ( actions.has(actionName) ) 
+            return actions.get(actionName) as unknown as T
+        else
+            throw Error(`Action does not exist: ${actionName}`)
+    }
+    catch (err) {
+        throw new CxError(__filename, 'getAction()', 'CTRL-0000',`ctrl.getAction("${actionName} failed")`, err)
+    }       
+}
 
 //
 // Keep track of initilizations to avoid calling Action initialization twice due to the decorator 
@@ -90,12 +116,22 @@ export function getState<T>(name:string, idx: number = -1, dataOnly: boolean = t
 }
 
 export function  hasStateData<T>(name:string, idx: number = -1 ): boolean {
-    let storeRec = getState<T>( name, idx, false ) as StoreEntry<T> 
-    return ( storeRec && ! _.isUndefined( storeRec.data ) ) 
+    try {
+        let res = false
+        let action = actions.has(name) ? actions.get(name) : undefined
+        if ( action !== undefined ) {
+            let _store = action.meta.intern ? runState: store
+            let storeRec = getState<T>( name, idx, false ) as StoreEntry<T> 
+            res =  ( storeRec && ! _.isUndefined( storeRec.data ) )
+        }
+        return res 
+    }
+    catch(err) {
+        throw new CxError(__filename, 'hasStateData()', 'CTRL-0009',`ctrl.hasStateData("${name}", ${idx}) failed for key: ${name}`, err)
+    }
 }
 
 export function  getStateData<T>(name:string, idx: number = -1 ): T {
-    cbug(`getStateData() for: ${name}`)
     return getState<T>( name, idx, true ) as T
 }
 

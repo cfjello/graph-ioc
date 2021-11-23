@@ -11,7 +11,7 @@ export type  PerfMeasureType = {
     transaction?: number, 
     start: number, 
     end: number | undefined, 
-    ms: number | undefined
+    // ms: number | undefined
 }
 
 // export type PerfMeasure = PerfMeasureType & ( ActionDescriptor | {} )
@@ -72,7 +72,7 @@ class Perf<P> {
             else if ( this.perf.has(token) ) {
                 let entry: PerfMeasureType & P = this.perf.get(token)!
                 entry.end = performance.now() 
-                entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
+                // entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
                 let logEntry: PerfMeasureType & P = _.merge(entry, desc)
                 $plog.info( logEntry as unknown )
                 // this.perf.delete(token)
@@ -105,7 +105,7 @@ class Perf<P> {
      */
     async logMeasure( token: string ) {
         let entry: PerfMeasureType & P = this.perf.get(token)!
-        entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
+        // entry.ms = ( entry.end === undefined ? 0 : entry.end - entry.start )
         $plog.info( entry as unknown )
     }
     

@@ -1,4 +1,4 @@
-export { $log, $plog, $logDir } from "./CxLog.ts"
+export { $log, $plog, $olog, $logDir } from "./CxLog.ts"
 export { perf } from "./CxPerf.ts"
 export { ee } from "./Events.ts"
 export { Mutex } from "./Mutex.ts"

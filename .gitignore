@@ -7,6 +7,7 @@ cxstore/StoreObjBundling.TBD
 cxctrl/lodashTest.ts
 logs/ctrl.log
 logs/perf.log
+logs/optimize.log
 /lib
 /examples/headIsland
 /examples/GHCN-DAILY/resources

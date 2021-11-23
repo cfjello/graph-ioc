@@ -5,3 +5,9 @@ export type jobThresholdType = {
 }
 
 export type NodeConfiguration = jobThresholdType & SwarmConfiguration
+
+export type MonitorDefaults = {
+    name: string,
+    port: number,
+    runServer: boolean
+}

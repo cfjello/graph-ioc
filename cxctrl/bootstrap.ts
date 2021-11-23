@@ -32,10 +32,6 @@ export async function bootstrap<T,C>( Type: Constructor<T>, conf: ActionConfigTy
         // 
         let isSwarmObj =  ! _.isUndefined(conf.swarmName!) 
         if ( isSwarmObj ) { 
-            if ( (ctrl.actions.get(name)?.swarm as SwarmMasterType).active ?? false ) {
-                // TODO set jobId
-                // set callbacks
-            }
             swarm.setSwarmCtrl(instance, 'child', conf)
         }
         //

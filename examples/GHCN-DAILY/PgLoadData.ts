@@ -3,8 +3,8 @@ import { Client } from "https://deno.land/x/postgres/mod.ts";
 import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 import { readLines } from "https://deno.land/std@0.93.0/io/mod.ts"
 import { parse as parseCsv } from 'https://deno.land/std@0.82.0/encoding/csv.ts';
-import { ctrl, Action, action, iterate } from "../../cxctrl/mod.ts"
-import { CxContinuous } from "../../cxstore/mod.ts"
+import { ctrl, Action, action } from "../../cxctrl/mod.ts"
+import { CxContinuous, iterate } from "../../cxiterate/mod.ts"
 import { CxError } from "../../cxutil/mod.ts"
 import { _ } from "../../cxutil/mod.ts"
 import { LoadListType, 
@@ -18,6 +18,8 @@ import { LoadList } from "./LoadList.ts"
 import { config } from "./config.ts"
 
 import { textTables, dataTables } from "./PgTableDefs.ts"
+import { SwarmChildType  } from "../../cxswarm/mod.ts";
+import { Advice } from "../../cxswarm/interfaces.ts";
 
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 
@@ -40,15 +42,19 @@ let toHHMMSS = function ( str: string ): string {
     init:  true
 })
 export class PgLoadData extends Action<RowStatType> {
-    // private conn =   ConnectionPool.getInstance() 
-    // static mutex  = new Mutex()
     static itor: CxContinuous<LoadListType[],LoadListType>
     
     initCap = function( str: string ): string {
         return str.charAt(0).toUpperCase() + str.slice(1)
     }
+    batchSize = 10000
 
-    _batchSize = 10000
+    //
+    // Callback function for batchSize optimizer
+    // 
+    setBatchSize( eventName: string, actionName: string, advice: Advice ): void {
+        this.batchSize = advice.advice
+    }
 
     //
     // Alternative login for the daily files, since pgManager creates problems, probably associated to rollbacks
@@ -89,7 +95,7 @@ export class PgLoadData extends Action<RowStatType> {
                     break
                 }
             }
-            let parseLine: Function = new Function(  ... pgTables.tableDefs.get(tableName)!.readTmpl! )
+            let parseLine: Function = new Function( ... pgTables.tableDefs.get(tableName)!.readTmpl! )
             let inserts: string = '' 
             let fileReader = await Deno.open(filePath)
 
@@ -139,6 +145,7 @@ export class PgLoadData extends Action<RowStatType> {
     airBuffer: any[] = []
 
     async insertAir( ent:  { [index: string]: any } , client: Client ) { // (Partial<AirTempType & HttpHeaderType> 
+        let self = this
         let fields = [ 'TMAX', 'TMIN', 'TOBS', 'TAVG'].filter( e =>  { if ( e in ent && !_.isUndefined( ent[e] ) && ent[e] !== 'NULL' ) return e } )
         if ( fields.length > 0 ) {
             let airAttr: string[]
@@ -146,11 +153,12 @@ export class PgLoadData extends Action<RowStatType> {
             airAttr = this.getAttributes( ent.TMIN_ATTRIBUTES )
             tavgAttr = this.getAttributes( ent.TAVG_ATTRIBUTES )
             this.airBuffer.push(`('${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.TMAX ?? 'NULL'}, ${ent.TMIN  ?? 'NULL'}, ${ent.TOBS  ?? 'NULL'}, ${ent.TAVG ?? 'NULL'}, ${airAttr[0]}, ${airAttr[1]}, ${airAttr[2]}, ${tavgAttr[0]}, ${tavgAttr[1]}, ${tavgAttr[2]})`)
-            if ( this.airBuffer.length > 0 &&  this.airBuffer.length % this._batchSize ) {
+            if ( this.airBuffer.length > 0 &&  this.airBuffer.length % this.batchSize ) {
                 try {
                     await client.queryObject( `INSERT INTO Air VALUES ` + this.airBuffer.join(',')  + ` ON CONFLICT ON CONSTRAINT Air_PK DO NOTHING` ) 
-                    this.airBuffer = [] 
-                    // await PgLoadData.setRowCount(this._batchSize)
+                    this.airBuffer = [];
+
+                    ((this as Action<RowStatType>).swarm as SwarmChildType).reward(this.batchSize)
                 }
                 catch(err) {
                     // console.log(`FAILED AIR record: ${JSON.stringify(ent, undefined, 2)}`)
@@ -189,10 +197,11 @@ export class PgLoadData extends Action<RowStatType> {
                 console.log(`BAD RAIN ENTRY: ('${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.PRCP ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]})`)
             }
             
-            if ( this.rainBuffer.length > 0 &&  this.rainBuffer.length % this._batchSize ) {
+            if ( this.rainBuffer.length > 0 &&  this.rainBuffer.length % this.batchSize ) {
                 try {
                     await client.queryObject( `INSERT INTO Rain VALUES ` + this.rainBuffer.join(',')  + `  ON CONFLICT ON CONSTRAINT Rain_PK DO NOTHING` ) 
-                    this.rainBuffer = [] 
+                    this.rainBuffer = [] ;
+                    ((this as Action<RowStatType>).swarm as SwarmChildType).reward(this.batchSize)
                     // await PgLoadData.setRowCount(this._batchSize)
                 }
                 catch(err) {
@@ -217,7 +226,8 @@ export class PgLoadData extends Action<RowStatType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.SNOW_ATTRIBUTES )
             try {
-                if ( ent.SNWD  >= -32768 && ent.SNWD  <= 32767 ) {
+                if ( ent.SNWD === "NULL" ) ent.SNWD = undefined
+                if ( ! ent.SNWD || ( ent.SNWD  >= -32768 && ent.SNWD  <= 32767 ) ) {
                     await client.queryObject( `INSERT INTO Snow VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.SNOW ?? 'NULL'}, ${ent.SNWD ?? 'NULL'}, ${ent.WESD ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Snow_PK DO NOTHING` )  
                 }
                 else {
@@ -244,7 +254,7 @@ export class PgLoadData extends Action<RowStatType> {
         if ( fields.length > 0 ) {
             let attr = this.getAttributes( ent.PSUN_ATTRIBUTES )
             try {
-                if ( ent.PSUN >= -32768 && ent.PSUN <= 32767 && ent.TSUN >= -32768 && ent.TSUN <= 32767 ) {
+                if ( ent.PSUN >= -32768 && ent.PSUN <= 32767 || ent.TSUN >= -32768 && ent.TSUN <= 32767 ) {
                     await client.queryObject( `INSERT INTO Sun VALUES ( '${ent.STATION}', TO_DATE('${ent.DATE}','YYYY-MM-DD'), ${ent.PSUN ?? 'NULL'}, ${ent.TSUN ?? 'NULL'}, ${attr[0]}, ${attr[1]}, ${attr[2]} )  ON CONFLICT ON CONSTRAINT Sun_PK DO NOTHING` ) 
                 }
                 else {

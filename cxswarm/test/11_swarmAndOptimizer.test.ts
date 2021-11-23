@@ -160,20 +160,21 @@ Deno.test( {
         expect( ctrl.runState.has('FileAppend3_optimize_swarm') ).toBeDefined()
        
         let optimizer  = (fileAppend3.swarm  as SwarmOptimizerType).optimizers.get('FileAppend3_optimize_swarm')!
-        optimizer.reward(1000)
-        await delay(2000)
-        optimizer.reward(2000)
-        await delay(3000)
-        optimizer.reward(4000)
-        await delay(4000)
+       
+        optimizer.reward(1000).then(() => {
+            optimizer.reward(2000).then(() => {
+                optimizer.reward(4000).then(() => {
+                    let mapRef: Map<number, StoreEntry<Advice>> = ctrl.getMapRef('FileAppend3_optimize_swarm')
 
-        let mapRef: Map<number, StoreEntry<Advice>> = ctrl.getMapRef('FileAppend3_optimize_swarm')
-
-        let prevAdvice = -1
-        mapRef.forEach( (value, key ) => {
-            expect( value.data.advice >= prevAdvice || value.data.done ||  value.data.handled ).toBeTruthy()
-            prevAdvice = value.data.advice
+                    let prevAdvice = -1
+                    mapRef.forEach( (value, key ) => {
+                        expect( value.data.advice >= prevAdvice || value.data.done ||  value.data.handled ).toBeTruthy()
+                        prevAdvice = value.data.advice
+                    })
+                })
+            })
         })
+       
     },
     sanitizeResources: false,
     sanitizeOps: false
@@ -199,22 +200,17 @@ Deno.test( {
         // await fileAppend4.run()
 
         let optimizer  = (fileAppend4.swarm  as SwarmOptimizerType).optimizers.get('FileAppend4_optimize_swarm')!
-        optimizer.reward(5000)
-        await delay(1200)
-        expect( ctrl.runState.has('FileAppend4_optimize_swarm') ).toBeDefined()
-
-        expect(optimizer.getCurrAdvice().advice).toEqual(26)
-        let childLen1 = (fileAppend4.swarm as SwarmMasterType).children.length
-        expect(childLen1).toEqual(26)
-
-        await delay(5000)
-        optimizer.reward(2000)
-        await delay(3000)
-        expect(optimizer.getCurrAdvice().advice).toEqual(12)
-        
-        // await delay(3000)
-        let childLen2 = (fileAppend4.swarm as SwarmMasterType).children.length
-        expect(childLen2).toEqual(12)
+        optimizer.reward(5000).then ( () => {
+            expect( ctrl.runState.has('FileAppend4_optimize_swarm') ).toBeDefined()
+            expect(optimizer.getCurrAdvice().advice).toEqual(26)
+            let childLen1 = (fileAppend4.swarm as SwarmMasterType).children.length
+            expect(childLen1).toEqual(26)
+            optimizer.reward(2000).then( () => {
+                expect(optimizer.getCurrAdvice().advice).toEqual(12)
+                let childLen2 = (fileAppend4.swarm as SwarmMasterType).children.length
+                expect(childLen2).toEqual(12)
+            })
+        })
     },
     sanitizeResources: false,
     sanitizeOps: false

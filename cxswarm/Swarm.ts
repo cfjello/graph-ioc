@@ -6,14 +6,15 @@ import { SwarmConfiguration,
          SwarmOptimizerType, 
          Approach, 
          Advice, 
-         OptimizerCallback  
+         OptimizerCallback
         } from "./interfaces.ts"
 import { ctrl, Action }  from '../cxctrl/mod.ts'
 import { config } from "../cxconfig/mod.ts"
 // import { NodeConfiguration } from "../cxconfig/interfaces.ts"
 import { SwarmOptimizer} from "./SwarmOptimizer.ts"
 import { bootstrap, bootstrapFromAction, Constructor } from "../cxctrl/bootstrap.ts"
-import {$log, perf, ee, CxError, _ , Mutex, debug } from "../cxutil/mod.ts"
+import { ee, CxError, $olog, _ , Mutex, debug } from "../cxutil/mod.ts"
+import { delay } from "https://deno.land/std@0.80.0/async/delay.ts";
 
 const __filename = new URL('', import.meta.url).pathname
 const mutex = new Mutex();
@@ -76,7 +77,13 @@ export const sbug = debug('swarm')
  * @param _maximum The maximum number of swarm actions to start with for the action element
  * @param optimize The optimization approach
  */
-export let swarmConfig = ( key: string, _minimum: number,  _maximum: number | undefined, approach: Approach = 'binary' ): void  => {
+export let swarmConfig = ( 
+    key: string, 
+    _minimum: number, 
+     _maximum: number | undefined, 
+     approach: Approach = 'binary' 
+    ): void  => 
+{
     let minimum = _minimum < 2 ? 0 : _minimum
     let maximum = _.isUndefined( _maximum ) || ( _maximum! < minimum ) ? minimum : _maximum
     setSwarmConfig( key, { minimum: minimum, maximum: maximum, approach: approach } )
@@ -90,12 +97,17 @@ export function setSwarmCtrl(
 {
     try {
         if ( swarmType === 'child' && _.isUndefined( confMeta?.swarmName) ) 
-            throw new CxError( __filename, 'setSwarmCtrl()', 'SWARM-0000', `SwarmType is "child" and Action config or config.SwarmName is undefined:`)
+            throw new CxError( 
+                __filename, 
+                'setSwarmCtrl()', 
+                'SWARM-0000', 
+                `SwarmType is "child" and Action config or config.SwarmName is undefined:`
+                )
         //
         // Swarm Base
         //
         if ( ! actionObj.swarm.init ) {
-            const _swarmName: string = confMeta?.swarmName ? confMeta.swarmName! : actionObj.meta.name!
+            const _swarmName: string = confMeta!.swarmName ? confMeta!.swarmName : actionObj.meta.name!
             const rewardMsgName      = `${actionObj.meta.name!}_reward`
             const actionName         = `${actionObj.meta.name}` 
             actionObj.swarm = {
@@ -105,14 +117,37 @@ export function setSwarmCtrl(
                 active:         false,
                 swarmLsnr:      ee.on( `${_swarmName}_msg`, 
                                     (msg: string): void => { 
-                                        if ( msg === 'stop' )
-                                            actionObj.swarm.canRun = false 
-                                        else if ( msg === 'start' ) 
-                                            actionObj.swarm.canRun = true 
+                                        try {
+                                            let swarmObj = ctrl.actions.get(_swarmName)!
+                                            if ( msg === 'stop' )
+                                                swarmObj.swarm.canRun = false 
+                                            else if ( msg === 'start' ) 
+                                                swarmObj.swarm.canRun = true 
+                                        }
+                                        catch(err) {
+                                            throw new CxError( 
+                                                __filename, 'setSwarmCtrl()', 
+                                                'SWARM-0000', 
+                                                `No such swarm object: ${_swarmName}`,
+                                                err)
+                                        }
                                     }
                                 ),
-                reward: ( value: number, optimizerName: string = 'swarm', swarmName: string = _swarmName ): void => { 
-                    ee.emit( rewardMsgName, actionName, value, optimizerName, swarmName )
+                reward: ( value: number, optimizeWhat: string = 'swarm', swarmName: string = _swarmName ): void => {
+                    try {
+                       const optimizerName = `${actionName}_optimize_${optimizeWhat}` 
+                       let optimizer = ctrl.actions.get(optimizerName)! as SwarmOptimizer
+                       optimizer.reward(value)
+                    }
+                    catch (err) {
+                       throw new CxError(
+                           __filename,
+                           'reward()', 
+                           'REWO-0001', 
+                           `Failed to send reward to optimizer: ${optimizeWhat}`
+                           , err 
+                        )
+                    }
                 },
             } as SwarmChildType
         }
@@ -123,7 +158,9 @@ export function setSwarmCtrl(
             //
             if ( ! (actionObj.swarm as SwarmMasterType).children )
                 (actionObj.swarm as SwarmMasterType).children =  [] as string[]
-            
+            //
+            // Optimizer Master
+            //
             if ( swarmType = 'optimizer') {
                 //
                 // Swarm Optimizer
@@ -134,27 +171,70 @@ export function setSwarmCtrl(
                     //
                     ( actionObj.swarm as SwarmOptimizerType).optimizers = new Map<string, SwarmOptimizer>();
                     ( actionObj.swarm as SwarmOptimizerType).callbacks  = new Map<string, OptimizerCallback>();
+                    ( actionObj.swarm as SwarmOptimizerType).roundRobin = (() => {
+                        let currKey =  0 
+                        function callbackName(operation: string) {
+                            let next =  () => {
+                                let keys = [ ...(actionObj.swarm as SwarmOptimizerType).optimizers.keys() ]
+                                let nextKey = currKey + 1
+                                currKey = nextKey >= keys.length ? 0 : nextKey
+                                return keys[currKey]
+                            }
+                            let current = () => {
+                                let keys = [ ...(actionObj.swarm as SwarmOptimizerType).optimizers.keys() ]
+                                return keys[currKey]
+                            }
+                            if (operation === 'next')
+                                return next()
+                            else {
+                                return current()
+                            }
+                        }
+                        return callbackName
+                    })();
+
                     //
                     // create default 'swarm' onAdvice event
                     // 
                     const eventName  = `${actionObj.meta.name}_advice`;
                     const actionName = `${actionObj.meta.name}`;
-                    ( actionObj.swarm as SwarmOptimizerType).onAdvice = ee.on( eventName, async ( eventName: string, actionName: string ) => {
-                            // let advices = ( actionObj.getState( eventName ) as unknown as OptimizerType).advices
+                    ( actionObj.swarm as SwarmOptimizerType).onAdvice = ee.on( 
+                        eventName, 
+                        async ( eventName:  string, 
+                                actionName: string,
+                                advice: Advice) => {
                             let callbackName   = eventName.replace('_optimize_', '_callback_')
-                            // sbug('onAdvice received: %s.%s', eventName, actionName)
-                            let _swarm = (actionObj.swarm as SwarmOptimizerType)
-                            if ( _swarm.callbacks && _swarm.callbacks.has(callbackName) ) {
-                                _swarm.callbacks.get(callbackName)!(eventName, actionName)
-                            }
-                            else {
-                                throw new CxError(__filename, 'onAdvice()', 'OPTI-0005', `No optimizer callback named: ${callbackName}` )
+                            sbug('onAdvice received: %s on %s', eventName, actionName)
+                            
+                            let _swarm = (actionObj.swarm as SwarmOptimizerType);
+                            let optimizerName =  _swarm.roundRobin('current')
+
+                            sbug(`\n${optimizerName} vs. ${eventName}`)
+                            if ( optimizerName === eventName && _swarm.callbacks && _swarm.callbacks.has(callbackName) ) {
+                                try {
+                                    // $olog.info(`Executing callback: ${callbackName} with actionName: ${actionName}`)
+                                    _swarm.callbacks.get(callbackName)!(eventName, actionName, _.clone(advice));
+
+                                    let isUserCallback = ( ! eventName.match(/.*_swarm$/) );
+                                    if ( isUserCallback ) {
+                                        let optimizer = _swarm.optimizers.get(optimizerName)!
+                                        advice.handled = true
+                                        optimizer.state = _.clone(advice)
+                                        optimizer.publish()
+                                    }
+                                    ( actionObj.swarm as SwarmOptimizerType).roundRobin('next')
+                                }
+                                catch (err ) {
+                                    throw new CxError(__filename, `${callbackName}()`, 'CALLBACK-0001', `Callback failed`, err )
+                                }
                             }
                             return Promise.resolve()
-                    })            
+                        }
+                    )            
                 //
                 // Overwrite the child reward function with master reward function
                 // 
+                /*
                 const optimizerPrefix: string   = `${actionObj.meta.name}_optimize`;
                 ( actionObj.swarm as SwarmOptimizerType).onReward = ee.on(
                     `${actionObj.meta.name}_reward`, 
@@ -165,7 +245,7 @@ export function setSwarmCtrl(
                             let _swarm = ( actionObj.swarm as SwarmOptimizerType)
                             if ( _swarm.optimizers.has(fullName) ) {
                                 let optimizer = _swarm.optimizers.get(fullName)!
-                                optimizer.reward(value, optimizerName)
+                                optimizer.reward(value)
                             }
                             else  {
                                 let keys = Object.keys(_swarm.optimizers)
@@ -174,9 +254,9 @@ export function setSwarmCtrl(
                         }
                         catch(err) {
                             throw new CxError(__filename, 'onReward()', 'OPTI-0006', `Failed to handle reward from ${swarmName} for optimizer ${optimizerName} on target ${targetName}`, err )
-                        }
-                        
+                        }       
                     })
+                */
                 }
             }
         }
@@ -281,7 +361,14 @@ export async function addSwarm<T>(
         sbug('Length of %s.swarm.children: %d', rootObj.meta.name , (ctrl.actions.get(actionName)!.swarm as SwarmMasterType).children.length)
     }
     catch(err) {
-        throw new CxError( __filename, 'addSwarm()', 'SWARM-0002', `Failed to add the swarm.`, err )
+        throw new CxError( 
+                __filename, 
+                'addSwarm()', 
+                'SWARM-0002', 
+                `Failed to add the swarm.`
+                , 
+                err 
+            )
     }
 }
 
@@ -310,13 +397,22 @@ export async function addToSwarm<T>(
             // Create and add new swarm object
             //
             let name = sprintf("%s_swarm_%04d", actionName, i)
-            sbug('Add Action: %s', name)
+            // sbug('Add Action: %s', name)
             ctrl.graph.addNode( name )
 
-            let actionConfig: ActionConfigType<T> = { name: rootName, swarmName: name, init: false, state: rootObj.state } 
+            let actionConfig: ActionConfigType<T> = { 
+                name: rootName, 
+                swarmName: name, 
+                init: false, 
+                state: rootObj.state 
+            } 
+            //
+            // Bootstrap and fetch the new child object
+            //
             ctrl.actions.set( name, await bootstrapFromAction( rootObj , actionConfig ) as unknown as Action<T> )
             
             let childObj = ctrl.actions.get( name )! 
+
             if ( (rootObj.swarm as SwarmMasterType).active ) { 
                 childObj.currActionDesc = rootObj.currActionDesc
             }
@@ -335,11 +431,12 @@ export async function addToSwarm<T>(
             //
             // Start the async execution of it if the swarm master object is running
             // else wait for the swarm master main() to run 
+            //
             if ( ( rootObj.swarm as SwarmMasterType ).active ) { 
                 ctrl.actions.get(name)!.__exec__ctrl__function__(ad)
             }
+            await delay(1000) // to many objects to quickly can result in e.g. timeout of db connections
         }
-        
         sbug('Length of %s.swarm.children: %d', rootObj.meta.name , (ctrl.actions.get(actionName)!.swarm as SwarmMasterType).children.length)
     }
     catch(err) {
@@ -358,40 +455,20 @@ export async function addOptimizer(
         //
         // Validation
         //
-        if ( ! rootObj.isSwarmMaster() ) 
-            throw new CxError( 
-                __filename, 
-                'addOptimizer()', 
-                'OPTI-0004', 
-                `Object ${name} is not a swarm master object.`
-            )
-        if ( !  config.nodeConfig.has(rootName) ) 
-            throw new CxError( 
-                __filename, 
-                'addOptimizer()', 
-                'OPTI-0005', 
-                `Object ${name} has no Swarm configuration.`
-            )
+        if ( ! rootObj.isSwarmMaster() ) throw Error( `Object ${name} is not a swarm master object.`)
+        if ( ! config.nodeConfig.has(rootName) ) throw Error(`Object ${name} has no Swarm configuration.`)
         
         let conf = config.nodeConfig.get(rootName)! 
         let storeName = `${rootObj.meta.name}_optimize_${name}`
 
         setSwarmCtrl(rootObj, 'optimizer', conf)
 
-        if ( ! conf.approach ) 
-            throw new CxError( 
-                __filename, 'addOptimizer()'
-                , 'OPTI-0006', 
-                `addOptimizer ${name} to create optimizer for config: ${JSON.stringify(conf, undefined,2)}`
-            );
+        if ( ! conf.approach ) throw Error(`addOptimizer ${name} failed to create optimizer for config: ${JSON.stringify(conf, undefined,2)}`);
+
+        sbug(`New OptimizerName: ${storeName}`)
 
         if ( (rootObj.swarm as SwarmOptimizerType).optimizers.has(storeName ) )
-            throw new CxError( 
-                __filename, 
-                'addOptimizer()', 
-                'OPTI-0007', 
-                `addOptimizer storeName ${storeName} for ${name} allready exists - delete the existing optimizer first`
-            );
+            throw Error( `addOptimizer storeName ${storeName} for ${name} allready exists - delete the existing optimizer first`);
         //
         // Create optimizer
         //
@@ -408,21 +485,21 @@ export async function addOptimizer(
             //
             // Add a default callback for the number of 'swarm' objects  
             //      
-            
-            (rootObj.swarm as SwarmOptimizerType).callbacks.set(callbackName, async function ( eventName: string, actionName: string) { 
+            (rootObj.swarm as SwarmOptimizerType).callbacks.set(
+                callbackName, 
+                async ( eventName:  string, 
+                        actionName: string,
+                        advice: Advice
+            ) => { 
                 sbug('Swarm Callback: %s for optimizer: %s and ActionObj: %s', callbackName, eventName, actionName)
                 try {
                     let actionObj    = ctrl.actions.get(actionName)!
                     let optimizer    = (actionObj.swarm as SwarmOptimizerType).optimizers.get(eventName)
                     
                     Mutex.doAtomic(callbackName, async () => {
-                        let advice: Advice = ctrl.getStateData(eventName)
-                        // let advices      = advice.advices
-                        // let idx          = advices.length -1
+                        // let advice: Advice = ctrl.getStateData(eventName)
                         let last: Advice = _.clone(advice)
 
-                        // let nextToLast = advices[ idx -1 ] ?? { done: false , advice: last.advice -1, reward: last.reward -1 }
-                        // if ( ! last.done && nextToLast.advice !== last.advice ) {
                         if ( ! last.handled) {
                             sbug('Callback: with Advice: %j', last)
                             let children = (actionObj.swarm as SwarmOptimizerType).children
@@ -440,24 +517,15 @@ export async function addOptimizer(
                     })
                 }
                 catch(err) {
-                    throw new CxError( 
-                        __filename, 'addOptimizer()', 
-                        'OPTI-0008', 
-                        `Calback ${callbackName} failed`,
-                        err
-                    );
+                    throw Error(`Calback ${callbackName} failed with ${err}`);
                 }
             }) 
         }
         else if ( callback ) {
-            (rootObj.swarm as SwarmOptimizerType).callbacks!.set(callbackName, () => callback ) 
+            (rootObj.swarm as SwarmOptimizerType).callbacks!.set(callbackName, callback as OptimizerCallback)
         }
         else {
-            throw new CxError( 
-                __filename, 'addOptimizer()', 
-                'OPTI-0009', 
-                `${name} optimizer ${callbackName} has no callback function - please provide one when adding the optimizer`
-            )
+            throw Error(`${name} optimizer ${callbackName} has no callback function - please provide one when adding the optimizer`)
         }
     }
     catch(err) {
@@ -525,6 +593,7 @@ export async function updateSwarm( actionName: string, newCount: number ) {
         if ( newCount > children.length ) {
             // Add Swarm objects
             sbug('In updateSwarm() with %s new total count: %d and current count: %d => add: %d', actionName, newCount, children.length, newCount - children.length)
+            
             await addToSwarm( actionName,  newCount - children.length, true )
             sbug('UpdateSwarm AFTER add: %d', (rootObj.swarm as SwarmMasterType).children.length )
         }

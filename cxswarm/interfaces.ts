@@ -7,15 +7,10 @@ export type OptimizerRewardType = {
     name:   string,
     value:  number
 }
-/*
-export type OptimizerMeasureType = {
-    ts:    number
-    value: number
-}
-*/ 
 
 export type Advice = {
-    done: boolean,
+    name:   string,
+    done:   boolean,
     advice: number,
     reward: number,
     ts:     number,
@@ -28,22 +23,22 @@ export type SwarmInitType = {
 }
 
 export type SwarmChildType = SwarmInitType & {
-    init:           boolean,
     swarmName:      string,
     active:         boolean,
     swarmLsnr:      EventEmitter,
-    reward:         ( value: number, name: string | undefined ) => void 
+    reward:         ( value: number, name?: string, swarmName?: string ) => void 
 }
 
 export type SwarmMasterType =  SwarmChildType & {
     children:      string[]
 }
 
-export type OptimizerCallback = (eventName: string, actionName: string ) => void
+export type OptimizerCallback = ( eventName: string, actionName: string, advice:Advice ) => void
 
 export type SwarmOptimizerType = SwarmMasterType & {
     optimizers:    Map<string, SwarmOptimizer>,
     callbacks:     Map<string, OptimizerCallback>,
+    roundRobin:    (operation: string) => string,
     onReward:      EventEmitter,
     onAdvice:      EventEmitter
 }
@@ -59,17 +54,3 @@ export type SwarmConfiguration = {
     timerMS?:       number,
     skipFirst?:     number,
 }
-
-/*
-export type  OptimizerTypeArray =  SwarmConfiguration & {
-    buffer:         number[],
-    rewards:        OptimizerMeasureType[],
-    advices:        Advice[]
-}
-
-
-export type  OptimizerType = {
-    reward:        OptimizerMeasureType,
-    advice:        Advice
-}
-*/

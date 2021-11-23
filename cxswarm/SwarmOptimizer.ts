@@ -1,6 +1,6 @@
 import { action, Action, ctrl } from "../cxctrl/mod.ts"
 import * as swarm  from "./Swarm.ts"
-import { ee, CxError, _ } from "../cxutil/mod.ts"
+import { ee, CxError, _, $olog, Mutex } from "../cxutil/mod.ts"
 import { SwarmConfiguration, Advice } from "./interfaces.ts"
 import { StoreEntry } from "../cxstore/mod.ts";
 
@@ -13,9 +13,11 @@ const __filename = new URL('', import.meta.url).pathname
     ctrl: 'optimize'
 }) 
 export class SwarmOptimizer extends Action<Advice> {
-    self     = this   
-    buffer   = [] as number[]
-    timerCnt = 0
+    self        = this   
+    buffer      = [] as number[]
+    timerCnt    = 0
+    prevTS      = 0    
+    calculating = false
 
     constructor( 
         _conf: Partial<SwarmConfiguration>, 
@@ -23,12 +25,14 @@ export class SwarmOptimizer extends Action<Advice> {
         public conf: SwarmConfiguration = swarm.swarmConfigDefaults( _conf )  
     ) {
         super({
-            advice: -1, 
-            reward: -1 ,
-            ts: performance.now() - (conf.timerMS! + 1),
-            done: false,
+            name:    conf.name,
+            advice:  -1, 
+            reward:  -1 ,
+            ts: performance.now() - (conf.timerMS! + 10),
+            done:    false,
             handled: true
         })
+        this.prevTS = Math.round(performance.now() - (conf.timerMS! + 10)) 
     }
 
     get(): Advice | undefined {
@@ -149,45 +153,57 @@ export class SwarmOptimizer extends Action<Advice> {
         }
     }
 
-    reward( value: number, name: string = 'swarm' ) { 
+    async reward( value: number ) { 
         let s = this.state
         try {
+            // swarm.sbug(`R_1`)
             let prev = this.getCurrAdvice()
-            //
-            // Update the local buffer
-            //
-            this.buffer.push(value)
-            let bufferLen = this.buffer.length
-            
-            let now = performance.now()
+            let now = Math.round(performance.now())
+            let prevTS: number
 
-            if ( value === 2000 || value === 5000 )   { // Testing
-                swarm.sbug('Reward got: %d vs. previous reward: %d ', value, this.state.reward )
-                swarm.sbug(
-                    'TS now: %d vs. previous TS: %d and diff: %d > %d', 
-                    Math.round(now), 
-                    Math.round(prev.ts), 
-                    Math.round(now - prev.ts),
-                    Math.round( this.conf.timerMS! ) )
+            if ( this.timerCnt === 0 ) {
+                prevTS = 0 
             }
 
-            if ( ( now - prev.ts ) > this.conf.timerMS! ) {
-                this.timerCnt++
-                // Sum up the buffer
-                const reducer = (accumulator: number, currentValue: number) => accumulator + currentValue
-                const reward  =  this.buffer.reduce(reducer) 
-
-                if ( prev.handled &&  this.conf.skipFirst! < this.timerCnt ) {
-                    s.reward =  reward
-                    this.optimize(reward)
-                    if ( s.advice  !== prev.advice ) {
-                        s.ts = now
-                        this.publish()
-                        ee.emit( `${this.swarmMasterName}_advice`, this.meta.name, `${this.swarmMasterName}` )
+            if ( ( now - this.prevTS ) > this.conf.timerMS! && ! this.calculating ) {
+                this.buffer.push(value)
+                let bufferLen = this.buffer.length
+                if ( prev.handled &&  this.conf.skipFirst! < this.timerCnt && ! this.calculating ) {
+                    try {    
+                        // swarm.sbug(`R_3`)
+                        this.calculating = true
+                        //
+                        // Sum up the buffer
+                        //
+                        const reducer = (accumulator: number, currentValue: number) => accumulator + currentValue
+                        // swarm.sbug(`R_4`)
+                        const reward  =  this.buffer.slice(0,bufferLen).reduce(reducer) 
+                        s.reward =  reward
+                        this.optimize(reward)
+                        swarm.sbug(`ADVICE: ${JSON.stringify(s)}`)
+                        let oName = ( this as Action<Advice>).meta.name
+                        $olog.info( { name: oName, type: 'advice', value: s} )
+                        if ( s.advice  !== prev.advice ) {
+                            s.ts = now
+                            this.publish()
+                            ee.emit( `${this.swarmMasterName}_advice`, oName, `${this.swarmMasterName}`, _.clone(s) )
+                        }
+                      
+                    }
+                    catch(err) { 
+                        throw Error(`Failed to handle reward`) 
+                    }
+                    finally {
+                        // Reset the buffer for next run
+                        this.buffer.splice(0, bufferLen)         
+                        this.calculating = false
                     }
                 }
-                // Reset the buffer for next run
-                this.buffer.splice(0, bufferLen)
+                this.timerCnt++
+                this.prevTS = Math.round(performance.now())
+            }
+            else {
+                this.buffer.push(value)
             }
         }
         catch ( err ) {

@@ -5,6 +5,7 @@ import { FileList }   from "./FileList.ts"
 import { LoadList }   from "./LoadList.ts"
 import { PgLoadData } from "./PgLoadData.ts"
 import { config } from "./config.ts"
+import { Action, ctrl } from "../../cxctrl/mod.ts";
 
 const __filename = new URL('', import.meta.url).pathname;
 
@@ -35,14 +36,22 @@ try {
     pgLoadData.setDependencies( 'LoadList' )
 
     swarm.setSwarmConfig('PgLoadData', {
-        maximum: 700,
-        minimum: 50,
-        skipFirst: 2,
+        maximum: 1250,
+        minimum: 200,
+        skipFirst: 1,
         approach: 'binary',
-        timerMS: 600000
+        timerMS: 5 * 60000
     } )
     await swarm.addSwarm('PgLoadData')
     await swarm.addOptimizer(pgLoadData)
+    
+    /*
+    await swarm.addOptimizer( PgLoadData as unknown as Action<any>, 'batchSize', ( eventName, actionName, advice ) => {
+        let actObj = ctrl.getAction<PgLoadData>(actionName)
+        swarm.sbug(`Into callback: ${eventName} for ${actionName}`)
+        actObj.batchSize += 50
+    })
+    */
 
     await pgLoadData.run()
 

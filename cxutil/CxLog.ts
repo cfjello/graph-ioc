@@ -5,7 +5,7 @@ import { _ } from '../cxutil/lodash.ts'
 
 export type ErrLogType = {
   level: string,
-  mac:   string, 
+  // mac:   string, 
   date:  string , 
   msg:   string, 
   args:  any[] 
@@ -26,9 +26,9 @@ await log.setup({
     handlers: {
       console:  new log.handlers.ConsoleHandler("INFO", {
         formatter: (logRecord) => {
-          let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": "${logRecord.msg}" }`
-          let msg = JSON.parse( msgJSON )   
-          let logEntry = _.merge ( { 
+          let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": ${logRecord.msg}" }`
+          let msg = JSON.parse( msgJSON )  
+          let logEntry = _.merge ({ 
             level: logRecord.levelName, 
             date: logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')   , 
           }, msg )       
@@ -37,7 +37,7 @@ await log.setup({
       }),
       ctrlFile: new log.handlers.FileHandler("DEBUG", {
         filename: path.resolve(`${$logDir}/ctrl.log`),
-        mode: 'a',
+        mode: 'w',
         formatter: (logRecord) => {
           let dateEntry = logRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
           let msgJSON = logRecord.msg.match(/^\s*\{.*/) ? logRecord.msg : `{ "message": "${logRecord.msg}" }`
@@ -48,6 +48,20 @@ await log.setup({
             date: dateEntry, 
           }, msg )       
           return `${JSON.stringify(logEntry)!}` as string
+        }
+      }),
+      optimizeFile: new log.handlers.FileHandler("INFO", {
+        filename: path.resolve(`${$logDir}/optimize.log`),
+        mode: 'w',
+        formatter: (optimizeRecord)  => {
+          let dateEntry = optimizeRecord.datetime.toISOString().replace(/[TZ\-:]/g , '')
+          let msgJSON = optimizeRecord.msg.match(/^\s*\{.*/) ? optimizeRecord.msg : `{ "message": "${optimizeRecord.msg}" }`
+          let msg = JSON.parse( msgJSON )
+          let logEntry  = _.merge ( { 
+            level: optimizeRecord.levelName,
+            date: dateEntry 
+          }, msg )
+          return `${JSON.stringify(logEntry)}`
         }
       }),
       perfFile: new log.handlers.FileHandler("INFO", {
@@ -75,6 +89,10 @@ await log.setup({
       perf: {
         level: "INFO",
         handlers: ["perfFile"],
+      },
+      optimize: {
+        level: "INFO",
+        handlers: ["optimizeFile"],
       }
     },
   });
@@ -84,3 +102,4 @@ await log.setup({
   // get default loggers
 export const $log  = log.getLogger();
 export const $plog = log.getLogger('perf');
+export const $olog = log.getLogger('optimize');

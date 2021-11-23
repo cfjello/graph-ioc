@@ -3,10 +3,12 @@ import * as path from "https://deno.land/std@0.74.0/path/mod.ts"
 const __filename = new URL('', import.meta.url).pathname
 export const __dirname = path.dirname( path.fromFileUrl(new URL('.', import.meta.url)) )
 import { CxError, _ } from "../cxutil/mod.ts"
-import { NodeConfiguration } from "./interfaces.ts"
+import { MonitorDefaults, NodeConfiguration } from "./interfaces.ts"
 import { SwarmConfiguration } from "../cxswarm/interfaces.ts"
 
-export let nodeConfig = new Map<string, NodeConfiguration>() 
+export let nodeConfig   = new Map<string, NodeConfiguration>() 
+export let globalConfig = new Map<string, any>() 
+
 
 let nodeConfigDefaults:  NodeConfiguration = {
     name: "NodeDefaults",
@@ -19,6 +21,14 @@ let nodeConfigDefaults:  NodeConfiguration = {
 }
 
 nodeConfig.set('NodeDefaults',  nodeConfigDefaults )
+
+let monitorDefaults:  MonitorDefaults = {
+    name:       "MonitorDefaults",
+    port:       9999,
+    runServer:  true
+}
+
+globalConfig.set('MonitorDefaults', monitorDefaults)
 
 // 
 // Configuration functions
@@ -34,7 +44,7 @@ nodeConfig.set('NodeDefaults',  nodeConfigDefaults )
         nodeConfig.set(key, conf as NodeConfiguration)
     else {
         let currConfig = nodeConfig.get(key)
-        nodeConfig.set(key, _.merge(currConfig, conf))
+        nodeConfig.set(key, _.merge(currConfig, conf) as NodeConfiguration)
     }
 }
 
@@ -48,7 +58,7 @@ export let getNodeConfig = ( key: string ): NodeConfiguration => {
     if ( ! nodeConfig.has(key) ) 
         throw new CxError(__filename, 'setNodeConfig()', 'CONF-0001', `There is no Configuration with name: ${key}`)
     else
-        return  nodeConfig.get(key)!
+        return  nodeConfig.get(key)! as NodeConfiguration
 }
 /**
  * Set the threshold configuration, simpler user function
@@ -94,7 +104,8 @@ export let setThreshold = ( key: string, _threshold: number ): void  => {
     //
     // Read and resolve swarm configuration
     //
-    let defaults = nodeConfig.get('NodeDefaults')!
+    let defaults = nodeConfig.get('NodeDefaults')! as NodeConfiguration
+
     let minimum  = nodeConf.minimum  < 2 ? defaults.minimum : nodeConf.minimum  
     let maximum  = nodeConf.maximum  < minimum ? minimum : nodeConf.maximum
     let timerMS  = nodeConf.timerMS ?? defaults.timerMS
@@ -104,5 +115,5 @@ export let setThreshold = ( key: string, _threshold: number ): void  => {
     nodeConf.maximum      = maximum
     nodeConf.timerMS      = timerMS
 
-    return nodeConf
+    return nodeConf as NodeConfiguration
 }

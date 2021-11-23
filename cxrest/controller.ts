@@ -1,52 +1,87 @@
 import { StateDataIntf, publishIntf } from "./interfaces.ts"
-import { ctrl } from "../../cxctrl/mod.ts"
+import { Action, ctrl } from "../cxctrl/mod.ts"
+import { SwarmMasterType } from "../cxswarm/mod.ts";
 
-const getStateData = (  stateName: string, id: string ): StateDataIntf  => {
+export const getStateData = (  stateName: string, id: string ): StateDataIntf  => {
     let msg = ""
     let _id = id.match(/^\s*(\-1|[0-9]+)\s*$/) ? parseInt(id) : undefined
-
-    let found = ctrl.store.has( stateName )
-    console.log(`Fetching ${stateName}/${_id}`)
-    let state =  found ? ctrl.store.get(stateName, _id ) : undefined
+    let found = ctrl.hasStateData( stateName )
+    // console.log(`Fetching ${stateName}/${_id}`)
+    let state =  found ? ctrl.getStateData(stateName, _id ) : undefined
     if ( ! found || ! state ) {
       msg = `${stateName}[${id}] Not Found`
     }
     return { found: found, state: state, msg: msg }
 }
 
-const getState = ({ params, response }: { params: { stateName: string }, response: any }) => {
+export const getState = ({ params, response }: { params: { stateName: string }, response: any }) => {
     let stateData = getStateData( params.stateName, "-1" )
     if ( stateData.found) {
         response.status = 200;
         response.body = {
             success: true,
             data: stateData.state,
-        };
+        }
     } else {
         response.status = 404;
         response.body = {
             success: false,
             msg: stateData.msg,
-        };
+        }
     }
 };
 
-const getStateById = ( { params, response }: { params: { stateName: string, id: string }; response: any }) => {   
+export const getStateById = ( { params, response }: { params: { stateName: string, id: string }; response: any }) => {   
     let stateData = getStateData( params.stateName, params.id )    
     if ( stateData.found) {
         response.status = 200;
         response.body = {
             success: true,
             data: stateData.state,
-        };
+        }
     } else {
         response.status = 404;
         response.body = {
             success: false,
             msg: stateData.msg,
-        };
+        }
     }
 };
+
+export const getSwarmCount = ( { params, response }: { params: { stateName: string }; response: any }) => {
+  let stateData: StateDataIntf
+  if ( ctrl.hasAction(params.stateName)  )  { 
+    let actionObj = ctrl.getAction(params.stateName) as Action<any>
+    if ( actionObj.isSwarmMaster() ) {
+      stateData = { 
+        found: true, 
+        state: {swarmCount: (actionObj.swarm as SwarmMasterType).children.length},
+        msg: ''
+      }
+    }
+    else {
+      stateData = { 
+        found: false,
+        state: {},
+        msg: `${params.stateName} Not Found`
+    }
+    }
+    if ( stateData.found) {
+        response.status = 200;
+        response.body = {
+            success: true,
+            data: stateData.state,
+        }
+    } else {
+        response.status = 404;
+        response.body = {
+            success: false,
+            msg: stateData.msg,
+        }
+    }
+  }
+}
+
 /*
 const publish = async ( { params, request, response }: publishIntf ) => {
     let found = ctrl.store.has( params.stateName )
@@ -70,8 +105,7 @@ const publish = async ( { params, request, response }: publishIntf ) => {
       };
     }
   };
-*/
-/*
+
 const addDinosaur = async (
   { request, response }: { request: any; response: any },
 ) => {
@@ -157,8 +191,11 @@ const updateDinosaur = async (
     };
   }
 };
-*/
+
+
 export {
     getState,
-    getStateById
-};
+    getStateById,
+    getSwarmCount
+}
+*/

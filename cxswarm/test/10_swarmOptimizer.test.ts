@@ -19,31 +19,35 @@ Deno.test(  {
                 approach: 'binary',
                 timerMS: 1000
             }, 'BinaryTest' ).register(`BinaryTest_optimize_swarm`)
+
             let entry = ctrl.getStateData('BinaryTest_optimize_swarm')  as Advice          
             expect( entry).toBeDefined() 
             expect( entry.reward ).toEqual(-1) 
-            console.log(`${JSON.stringify(entry)}`)
+            // console.log(`${JSON.stringify(entry)}`)
             let mapEntries = ctrl.getMapRef('BinaryTest_optimize_swarm') 
             expect (mapEntries.size).toEqual(2)
-            await optimizer.reward(50)
-            expect ( optimizer.state.reward ).toEqual(50)
-            let min = optimizer.conf.minimum
-            let max = optimizer.conf.maximum
-            expect ( optimizer.state.advice ).toEqual(min + ( max-min)/ 2)
-            optimizer.state.handled = true
-            optimizer.publish()
-            await delay(1100)
-            optimizer.reward(55)
-            expect ( optimizer.state.reward ).toEqual(55)
-            expect ( optimizer.state.advice ).toEqual(38)
-            optimizer.state.handled = true
-            optimizer.publish()
-            const prev = optimizer.getCurrAdvice()
-            await delay(1100)
-            optimizer.reward(25)
-            expect ( optimizer.state.reward ).toEqual(25)
-            await delay(1100)
-            expect ( optimizer.state.advice ).toBeLessThan(prev.advice)
+
+            optimizer.reward(50).then(() => {
+                expect ( optimizer.state.reward ).toEqual(50)
+                let min = optimizer.conf.minimum
+                let max = optimizer.conf.maximum
+                expect ( optimizer.state.advice ).toEqual(min + ( max-min)/ 2)
+                optimizer.state.handled = true
+                optimizer.publish()
+            }).then (() => {
+                optimizer.reward(55).then( () => {
+                    expect ( optimizer.state.reward ).toEqual(55)
+                    expect ( optimizer.state.advice ).toEqual(38)
+                    optimizer.state.handled = true
+                    optimizer.publish()
+                    const prev = optimizer.getCurrAdvice()
+                    optimizer.reward(25).then (() => {
+                    expect ( optimizer.state.reward ).toEqual(25)
+                    expect ( optimizer.state.advice ).toBeLessThan(prev.advice)
+                    })
+            
+                }) 
+            })    
         }
         catch (err ) { console.log(err) }
     },
@@ -63,23 +67,27 @@ Deno.test( {
                 interval: 10,
                 timerMS: 1000
             }, 'interval_optimize_swarm' ).register('interval_optimize_swarm' )
-            await optimizer.reward(50)
-            expect ( optimizer.state.reward ).toEqual(50)
-            let min = optimizer.conf.minimum
-            let max = optimizer.conf.maximum
-            expect ( optimizer.state.advice ).toEqual(12)
-            optimizer.state.handled = true
-            optimizer.publish()
-            await delay(1100)
-            optimizer.reward(55)
-            expect ( optimizer.state.reward ).toEqual(55)
-            expect ( optimizer.state.advice ).toEqual(22)
-            optimizer.state.handled = true
-            optimizer.publish()
-            await delay(1100)
-            optimizer.reward(25)
-            expect ( optimizer.state.reward ).toEqual(25)
-            expect ( optimizer.state.advice ).toEqual(12)
+            optimizer.reward(50).then(() => {
+                expect ( optimizer.state.reward ).toEqual(50)
+                let min = optimizer.conf.minimum
+                let max = optimizer.conf.maximum
+                expect ( optimizer.state.advice ).toEqual(12)
+                optimizer.state.handled = true
+                optimizer.publish()
+
+                optimizer.reward(55).then(() => {
+                    expect ( optimizer.state.reward ).toEqual(55)
+                    expect ( optimizer.state.advice ).toEqual(22)
+                    optimizer.state.handled = true
+                    optimizer.publish()
+
+                    optimizer.reward(25).then (() => {
+                        expect ( optimizer.state.reward ).toEqual(25)
+                        expect ( optimizer.state.advice ).toEqual(12)
+                    })
+                })
+            })
+           
         }
         catch (err ) { console.log(err) }
     },
